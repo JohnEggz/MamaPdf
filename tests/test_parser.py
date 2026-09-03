@@ -193,3 +193,160 @@ def test_normalize_birth_date_short_input_returns_raw(short_input: str):
 )
 def test_normalize_location(input_loc: str | None, expected_loc: str):
     assert _normalize_location(input_loc) == expected_loc  # pyright: ignore[reportArgumentType]
+
+
+# ============================================================================
+# Survey (Ankieta) Parser Tests
+# ============================================================================
+
+from johnmamapdfv2.spreadsheet_parser import (
+    KEYS_AVERAGE,
+    KEY_LISTA,
+    KEY_TAK_NIE,
+    KEY_SORTING,
+    MULTI_CHOICE_KEY,
+    validate_columns,
+    analyze_survey_grid,
+    analyze_spreadsheet,
+    format_summary_to_string,
+    process_survey_file,
+    process_ods_buffer,
+)
+import sys
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+import deprecated_ankieta_parser
+
+
+def test_survey_validate_columns_valid():
+    valid_headers = ["Sygnatura czasowa"] + list(KEYS_AVERAGE) + [KEY_LISTA, KEY_TAK_NIE, KEY_SORTING]
+    is_valid, missing = validate_columns(valid_headers)
+    assert is_valid is True
+    assert missing is None
+
+
+def test_survey_validate_columns_missing():
+    # Missing KEY_TAK_NIE
+    headers = ["Sygnatura czasowa"] + list(KEYS_AVERAGE) + [KEY_LISTA, KEY_SORTING]
+    is_valid, missing = validate_columns(headers)
+    assert is_valid is False
+    assert missing == KEY_TAK_NIE
+
+
+def test_survey_validate_columns_whitespace_resilience():
+    # Stripped headers without trailing spaces
+    headers = [h.strip() for h in list(KEYS_AVERAGE) + [KEY_LISTA, KEY_TAK_NIE, KEY_SORTING]]
+    is_valid, missing = validate_columns(headers)
+    assert is_valid is True
+    assert missing is None
+
+
+def test_survey_analyze_survey_grid_and_format():
+    headers = ["Sygnatura czasowa"] + list(KEYS_AVERAGE) + [KEY_LISTA, KEY_TAK_NIE, KEY_SORTING, "Inne uwagi"]
+    row1 = [
+        "2026-03-03 12:00:00",
+        5, 4, 5, 5, 5, 4,
+        "Świetne szkolenie!",
+        "Tak",
+        "TIK w pracy nauczyciela, Prawo oświatowe",
+        "Wszystko super",
+    ]
+    row2 = [
+        "2026-03-03 12:05:00",
+        4, 5, 4, 4, 5, 5,
+        "Więcej warsztatów",
+        "Tak",
+        "Bezpieczeństwo w sieci uczniów i nauczycieli, Nowy nieznany temat",
+        "Wszystko super",
+    ]
+    row3 = [
+        "2026-03-03 12:10:00",
+        5, 5, 5, 5, 5, 5,
+        "",
+        "Nie wiem",
+        "brak",
+        "Może być",
+    ]
+    grid = [headers, row1, row2, row3]
+
+    summary = analyze_survey_grid(grid)
+
+    # Check average scores
+    assert summary[KEYS_AVERAGE[0]] == round((5 + 4 + 5) / 3, 1)  # 4.7
+    assert summary[KEYS_AVERAGE[1]] == round((4 + 5 + 5) / 3, 1)  # 4.7
+
+    # Check remarks list (empty string filtered out)
+    assert summary[KEY_LISTA] == ["Świetne szkolenie!", "Więcej warsztatów"]
+
+    # Check tak/nie counts
+    assert summary[KEY_TAK_NIE] == {"Tak": 2, "Nie wiem": 1, "Nie": 0}
+
+    # Check multi-choice sorting
+    assert summary[KEY_SORTING]["TIK w pracy nauczyciela"] == 1
+    assert summary[KEY_SORTING]["Prawo oświatowe"] == 1
+    assert summary[KEY_SORTING]["Bezpieczeństwo w sieci uczniów i nauczycieli"] == 1
+    assert summary[KEY_SORTING]["inne"] == 1
+
+    # Check arbitrary text column
+    assert summary["Inne uwagi"]["type"] == "text"
+    assert summary["Inne uwagi"]["counts"]["Wszystko super"] == 2
+    assert summary["Inne uwagi"]["counts"]["Może być"] == 1
+
+    # Check Sygnatura czasowa excluded
+    assert "Sygnatura czasowa" not in summary
+
+    # Check formatted string
+    text = format_summary_to_string(summary)
+    assert KEYS_AVERAGE[0] in text
+    assert KEY_LISTA in text
+    assert "Świetne szkolenie!" in text
+    assert "Więcej warsztatów" in text
+    assert "Tak" in text
+    assert "--------------------" in text
+
+
+def test_survey_analyze_empty_grid_raises():
+    with pytest.raises(ValueError, match="Arkusz nie zawiera żadnych danych"):
+        analyze_survey_grid([])
+
+
+def test_survey_analyze_missing_column_raises():
+    grid = [["Nieprawidłowy nagłówek 1", "Nieprawidłowy nagłówek 2"]]
+    with pytest.raises(ValueError, match="Nieprawidłowy format pliku. Brakująca kolumna"):
+        analyze_survey_grid(grid)
+
+
+def test_survey_process_ods_buffer_error_handling():
+    # Passing invalid buffer string returns error message string rather than raising
+    err = process_ods_buffer(b"invalid data")
+    assert "Błąd podczas przetwarzania pliku:" in err
+
+
+def test_deprecated_ankieta_parser_backward_compatibility():
+    assert deprecated_ankieta_parser.KEYS_AVERAGE == KEYS_AVERAGE
+    assert deprecated_ankieta_parser.KEY_LISTA == KEY_LISTA
+    assert deprecated_ankieta_parser.KEY_TAK_NIE == KEY_TAK_NIE
+    assert deprecated_ankieta_parser.KEY_SORTING == KEY_SORTING
+    assert deprecated_ankieta_parser.MULTI_CHOICE_KEY == MULTI_CHOICE_KEY
+    assert callable(deprecated_ankieta_parser.validate_columns)
+    assert callable(deprecated_ankieta_parser.analyze_spreadsheet)
+    assert callable(deprecated_ankieta_parser.format_summary_to_string)
+
+
+def test_process_survey_file_with_mocked_sheet(tmp_path: Path):
+    headers = ["Sygnatura czasowa"] + list(KEYS_AVERAGE) + [KEY_LISTA, KEY_TAK_NIE, KEY_SORTING]
+    row1 = ["2026-03-03", 5, 5, 5, 5, 5, 5, "Uwaga 1", "Tak", "Prawo oświatowe"]
+    mock_grid = [headers, row1]
+
+    dummy_path = tmp_path / "survey.ods"
+    dummy_path.touch()
+
+    with patch("johnmamapdfv2.spreadsheet_parser.read_raw_sheet", return_value=mock_grid):
+        output = process_survey_file(dummy_path)
+        assert KEYS_AVERAGE[0] in output
+        assert "5.0" in output
+        assert "Uwaga 1" in output
+        assert "Tak" in output
+
+

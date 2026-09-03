@@ -30,6 +30,9 @@
         <button id="btn-pick-ods" class="btn btn-primary">
           <span>📂</span> Importuj .ods / .xlsx
         </button>
+        <button id="btn-parse-survey" class="btn btn-tonal" title="Przetwórz ankietę ewaluacyjną (.ods / .xlsx)">
+          <span>📊</span> Analizuj ankietę
+        </button>
       </div>
 
       <div class="sidebar-divider"></div>
@@ -143,6 +146,33 @@
       </div>
     </spreadsheet-pane>
   </main>
+
+  <!-- ====================================================================
+       Modal: Survey Analysis Output
+       ==================================================================== -->
+  <div id="survey-modal" class="modal-backdrop" hidden>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="modal-icon">📊</span>
+          <div id="survey-modal-title" class="modal-title">Wyniki ankiety</div>
+        </div>
+        <button id="btn-modal-close-x" class="btn-icon-only" title="Zamknij" aria-label="Zamknij">✕</button>
+      </div>
+      <div class="modal-body">
+        <textarea id="survey-output-text" class="modal-textarea" readonly spellcheck="false" placeholder="Brak wyników do wyświetlenia..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <span id="survey-copy-status" class="copy-status-hint"></span>
+        <button id="btn-survey-copy" class="btn btn-primary">
+          <span>📋</span> Kopiuj do schowka
+        </button>
+        <button id="btn-survey-close" class="btn btn-tonal">
+          Zamknij
+        </button>
+      </div>
+    </div>
+  </div>
 
 </body>
 </html>

@@ -13,6 +13,7 @@ import {
   apiRemoveParticipant,
   apiGeneratePdfs,
   apiOpenExplorer,
+  apiParseSurvey,
 } from "./api.js";
 import { store } from "./state.js";
 
@@ -209,6 +210,14 @@ async function init() {
   // Bind DOM refs
   dom = {
     btnPickOds: document.getElementById("btn-pick-ods"),
+    btnParseSurvey: document.getElementById("btn-parse-survey"),
+    surveyModal: document.getElementById("survey-modal"),
+    surveyModalTitle: document.getElementById("survey-modal-title"),
+    btnModalCloseX: document.getElementById("btn-modal-close-x"),
+    surveyOutputText: document.getElementById("survey-output-text"),
+    surveyCopyStatus: document.getElementById("survey-copy-status"),
+    btnSurveyCopy: document.getElementById("btn-survey-copy"),
+    btnSurveyClose: document.getElementById("btn-survey-close"),
     storageDirList: document.getElementById("storage-dir-list"),
 
     inputNazwa: document.getElementById("input-nazwa"),
@@ -331,6 +340,101 @@ async function init() {
       }
     } catch (err) {
       showStatus(`Błąd: ${err.message}`, "error");
+    }
+  });
+
+  // Modal helpers for survey report window
+  function openSurveyModal(text, title = "Wyniki ankiety") {
+    if (!dom.surveyModal) return;
+    if (dom.surveyModalTitle) dom.surveyModalTitle.textContent = title;
+    if (dom.surveyOutputText) dom.surveyOutputText.value = text;
+    if (dom.surveyCopyStatus) dom.surveyCopyStatus.textContent = "";
+    dom.surveyModal.hidden = false;
+    if (dom.surveyOutputText) dom.surveyOutputText.focus();
+  }
+
+  function closeSurveyModal() {
+    if (!dom.surveyModal) return;
+    dom.surveyModal.hidden = true;
+    if (dom.surveyOutputText) dom.surveyOutputText.value = "";
+    if (dom.surveyCopyStatus) dom.surveyCopyStatus.textContent = "";
+  }
+
+  async function copySurveyToClipboard() {
+    if (!dom.surveyOutputText) return;
+    const text = dom.surveyOutputText.value;
+    if (!text) return;
+
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        dom.surveyOutputText.select();
+        document.execCommand("copy");
+      }
+
+      if (dom.surveyCopyStatus) {
+        dom.surveyCopyStatus.textContent = "✓ Skopiowano do schowka!";
+        setTimeout(() => {
+          if (dom.surveyCopyStatus && dom.surveyCopyStatus.textContent === "✓ Skopiowano do schowka!") {
+            dom.surveyCopyStatus.textContent = "";
+          }
+        }, 3000);
+      }
+
+      if (dom.btnSurveyCopy) {
+        const origHtml = dom.btnSurveyCopy.innerHTML;
+        dom.btnSurveyCopy.innerHTML = "<span>✓</span> Skopiowano!";
+        setTimeout(() => {
+          if (dom.btnSurveyCopy) dom.btnSurveyCopy.innerHTML = origHtml;
+        }, 2000);
+      }
+    } catch (err) {
+      dom.surveyOutputText.select();
+      if (dom.surveyCopyStatus) {
+        dom.surveyCopyStatus.textContent = "Użyj Ctrl+C, aby skopiować.";
+      }
+    }
+  }
+
+  // Button: Parse Survey (.ods / .xlsx) -> opens text window without saving
+  if (dom.btnParseSurvey) {
+    dom.btnParseSurvey.addEventListener("click", async () => {
+      try {
+        showStatus("Otwieranie okna wyboru ankiety...", "success", 2000);
+        const res = await apiParseSurvey();
+        if (res.cancelled) return;
+
+        if (res.success) {
+          openSurveyModal(res.text, `Wyniki ankiety: ${res.filename || ""}`.trim());
+          showStatus("Przetworzono ankietę pomyślnie!");
+        } else {
+          showStatus(res.error || "Nie udało się przeanalizować ankiety", "error", 8000);
+        }
+      } catch (err) {
+        showStatus(`Błąd analizy ankiety: ${err.message}`, "error", 8000);
+      }
+    });
+  }
+
+  // Modal actions: Copy & Close
+  if (dom.btnSurveyCopy) {
+    dom.btnSurveyCopy.addEventListener("click", copySurveyToClipboard);
+  }
+  if (dom.btnSurveyClose) {
+    dom.btnSurveyClose.addEventListener("click", closeSurveyModal);
+  }
+  if (dom.btnModalCloseX) {
+    dom.btnModalCloseX.addEventListener("click", closeSurveyModal);
+  }
+  if (dom.surveyModal) {
+    dom.surveyModal.addEventListener("click", (e) => {
+      if (e.target === dom.surveyModal) closeSurveyModal();
+    });
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && dom.surveyModal && !dom.surveyModal.hidden) {
+      closeSurveyModal();
     }
   });
 

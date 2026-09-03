@@ -8,6 +8,7 @@ from johnmamapdfv2.api import (
     api_remove_participant,
     api_generate_pdfs,
     api_open_explorer,
+    api_parse_survey,
 )
 from johnmamapdfv2.state import state
 
@@ -142,3 +143,34 @@ def test_api_auto_save_on_meta_update(tmp_path: Path) -> None:
         saved_json = proj_dir / "szkolenie.json"
         assert saved_json.exists()
         assert "Zaktualizowana Nazwa Auto" in saved_json.read_text(encoding="utf-8")
+
+
+def test_api_parse_survey_cancelled() -> None:
+    with patch("johnmamapdfv2.api.pick_spreadsheet_file", return_value=None):
+        res = api_parse_survey()
+        assert res["success"] is False
+        assert res["cancelled"] is True
+
+
+def test_api_parse_survey_success() -> None:
+    with (
+        patch("johnmamapdfv2.api.pick_spreadsheet_file", return_value=Path("/tmp/ankieta_test.ods")),
+        patch("johnmamapdfv2.api.process_survey_file", return_value="Raport ankiety..."),
+    ):
+        res = api_parse_survey()
+        assert res["success"] is True
+        assert res["cancelled"] is False
+        assert res["text"] == "Raport ankiety..."
+        assert res["filename"] == "ankieta_test.ods"
+
+
+def test_api_parse_survey_error() -> None:
+    with (
+        patch("johnmamapdfv2.api.pick_spreadsheet_file", return_value=Path("/tmp/bad_survey.ods")),
+        patch("johnmamapdfv2.api.process_survey_file", side_effect=ValueError("Brakująca kolumna: XYZ")),
+    ):
+        res = api_parse_survey()
+        assert res["success"] is False
+        assert res["cancelled"] is False
+        assert "Brakująca kolumna: XYZ" in res["error"]
+

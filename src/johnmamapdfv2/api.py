@@ -8,7 +8,7 @@ from johnmamapdfv2.dialogs import (
 )
 from johnmamapdfv2.json_io import load_training_document, save_training_document
 from johnmamapdfv2.paths import get_workspace_dir
-from johnmamapdfv2.spreadsheet_parser import load_participants
+from johnmamapdfv2.spreadsheet_parser import load_participants, process_survey_file
 from johnmamapdfv2.state import create_empty_document, state
 from johnmamapdfv2.storage import create_project_directory, list_workspace_projects
 from johnmamapdfv2.types import Participant, TrainingDocument
@@ -253,3 +253,31 @@ def api_open_explorer(target_path: str | None = None) -> dict[str, Any]:
         "success": success,
         "path": str(folder),
     }
+
+
+@eel.expose
+def api_parse_survey() -> dict[str, Any]:
+    """
+    Opens native OS dialog to select a survey spreadsheet (.ods / .xlsx),
+    parses survey responses, and returns formatted report text.
+    The output is in-memory only and is not saved to disk or project state.
+    """
+    file_path = pick_spreadsheet_file(title="Wybierz ankietę (.ods / .xlsx)")
+    if not file_path:
+        return {"success": False, "cancelled": True}
+
+    try:
+        report_text = process_survey_file(file_path)
+        return {
+            "success": True,
+            "cancelled": False,
+            "text": report_text,
+            "filename": file_path.name,
+        }
+    except Exception as exc:
+        return {
+            "success": False,
+            "cancelled": False,
+            "error": f"Błąd podczas analizy ankiety: {exc}",
+        }
+

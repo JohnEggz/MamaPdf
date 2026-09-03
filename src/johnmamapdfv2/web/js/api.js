@@ -76,3 +76,9 @@ export async function apiOpenExplorer(targetPath = null) {
   const eel = await getEel();
   return await eel.api_open_explorer(targetPath)();
 }
+
+export async function apiParseSurvey() {
+  const eel = await getEel();
+  return await eel.api_parse_survey()();
+}
+

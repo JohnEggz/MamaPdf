@@ -43,7 +43,7 @@ def _pick_file_tkinter(title: str, file_types: list[tuple[str, str]]) -> Path | 
         return None
 
 
-def pick_spreadsheet_file() -> Path | None:
+def pick_spreadsheet_file(title: str = "Wybierz arkusz (.ods / .xlsx)") -> Path | None:
     """Opens native dialog for selecting spreadsheet (.ods, .xlsx, .xls)."""
     filters_zenity = [
         ("Arkusze kalkulacyjne (*.ods, *.xlsx)", "*.ods *.xlsx *.ODS *.XLSX"),
@@ -54,13 +54,13 @@ def pick_spreadsheet_file() -> Path | None:
         ("Wszystkie pliki", "*.*"),
     ]
 
-    path = _pick_file_zenity("Wybierz arkusz (.ods / .xlsx)", filters_zenity)
+    path = _pick_file_zenity(title, filters_zenity)
     if path is not None:
         return path
     if shutil.which("zenity"):
         # Zenity was present, user cancelled
         return None
-    return _pick_file_tkinter("Wybierz arkusz (.ods / .xlsx)", filters_tk)
+    return _pick_file_tkinter(title, filters_tk)
 
 
 def pick_json_file() -> Path | None:
