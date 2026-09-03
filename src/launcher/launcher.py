@@ -1,4 +1,5 @@
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -68,29 +69,22 @@ def set_local_version(tag: str) -> None:
 
 # --- NETWORK & VERIFICATION ---
 def get_latest_release_tag() -> str | None:
-    """
-    Finds the latest tag using GitHub redirect URL headers.
-    Bypasses GitHub's 60 req/hr unauthenticated API rate limits.
-    """
-    url = f"https://github.com/{GITHUB_REPO}/releases/latest"
+    """Fetches the latest release tag via GitHub REST API."""
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
     req = urllib.request.Request(
         url,
-        headers={"User-Agent": f"{APP_NAME}-Launcher"},
-        method="HEAD",
+        headers={
+            "User-Agent": f"{APP_NAME}-Launcher",
+            "Accept": "application/vnd.github.v3+json",
+        },
     )
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
-            final_url = resp.url
-            if "/releases/tag/" in final_url:
-                return final_url.rstrip("/").split("/")[-1]
-    except urllib.error.HTTPError as e:
-        if e.code in (301, 302):
-            redirect_url = e.headers.get("Location", "")
-            if "/releases/tag/" in redirect_url:
-                return redirect_url.rstrip("/").split("/")[-1]
-    except Exception:
-        pass
-    return None
+            data = json.loads(resp.read().decode("utf-8"))
+            return data.get("tag_name")
+    except Exception as e:
+        print(f"Error fetching release: {e}")
+        return None
 
 
 def download_stream(url: str, dest: Path, status_cb, chunk_size: int = 65536) -> None:
@@ -113,10 +107,9 @@ def verify_sha256(file_path: Path, expected_hash_file: Path) -> bool:
 def launch_app(root: tk.Tk | None = None) -> None:
     if EXE_PATH.is_file():
         if sys.platform == "win32":
-            # 0x00000008 = DETACHED_PROCESS
             subprocess.Popen(
                 [str(EXE_PATH)],
-                creationflags=0x00000008,
+                creationflags=subprocess.DETACHED_PROCESS,
                 cwd=str(APP_DIR),
                 close_fds=True,
             )
@@ -172,7 +165,7 @@ def perform_update(tag: str, status_cb) -> bool:
             status_cb(f"Błąd rozpakowywania: {e}")
             return False
 
-        # Find the inner payload root
+        # Locate the directory containing the executable payload
         extracted_exe = [f for f in staging_dir.rglob(EXE_NAME) if f.is_file()]
         if not extracted_exe:
             status_cb("Błąd: Archiwum nie zawiera pliku wykonywalnego.")
@@ -180,21 +173,17 @@ def perform_update(tag: str, status_cb) -> bool:
         exe_file = extracted_exe[0]
         extracted_root = exe_file.parent
 
-        if sys.platform != "win32":
-            exe_file.chmod(exe_file.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-
         status_cb("Instalowanie...")
         backup_dir = BASE_DIR / f"{APP_NAME}_backup"
         try:
             if backup_dir.exists():
                 shutil.rmtree(backup_dir, ignore_errors=True)
+
             if APP_DIR.exists():
                 APP_DIR.rename(backup_dir)
 
-            if APP_DIR.exists():
-                shutil.rmtree(APP_DIR, ignore_errors=True)
-
-            shutil.move(str(extracted_root), str(APP_DIR))
+            # Copy tree directly into APP_DIR to prevent path nesting issues
+            shutil.copytree(extracted_root, APP_DIR, dirs_exist_ok=True)
 
             if sys.platform != "win32":
                 final_exe = APP_DIR / EXE_NAME

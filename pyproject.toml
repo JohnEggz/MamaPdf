@@ -16,7 +16,7 @@ dependencies = [
 
 [project.scripts]
 johnmamapdfv2 = "johnmamapdfv2.app:run"
-generator-launcher = "launcher.launcher:main"
+launcher = "launcher.launcher:main"
 
 [build-system]
 requires = ["hatchling"]
