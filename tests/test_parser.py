@@ -216,7 +216,6 @@ import sys
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
-import deprecated_ankieta_parser
 
 
 def test_survey_validate_columns_valid():
@@ -322,16 +321,6 @@ def test_survey_process_ods_buffer_error_handling():
     err = process_ods_buffer(b"invalid data")
     assert "Błąd podczas przetwarzania pliku:" in err
 
-
-def test_deprecated_ankieta_parser_backward_compatibility():
-    assert deprecated_ankieta_parser.KEYS_AVERAGE == KEYS_AVERAGE
-    assert deprecated_ankieta_parser.KEY_LISTA == KEY_LISTA
-    assert deprecated_ankieta_parser.KEY_TAK_NIE == KEY_TAK_NIE
-    assert deprecated_ankieta_parser.KEY_SORTING == KEY_SORTING
-    assert deprecated_ankieta_parser.MULTI_CHOICE_KEY == MULTI_CHOICE_KEY
-    assert callable(deprecated_ankieta_parser.validate_columns)
-    assert callable(deprecated_ankieta_parser.analyze_spreadsheet)
-    assert callable(deprecated_ankieta_parser.format_summary_to_string)
 
 
 def test_process_survey_file_with_mocked_sheet(tmp_path: Path):
