@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JohnMamaPDF v2</title>
+
+  <!-- Semantic Material 3 Theme Tokens (Dummy Matugen) -->
+  <link rel="stylesheet" href="css/theme.css" />
+  <!-- Layout Resets & Grids -->
+  <link rel="stylesheet" href="css/base.css" />
+  <!-- UI Components -->
+  <link rel="stylesheet" href="css/components.css" />
+
+  <!-- Eel Bridge -->
+  <script type="text/javascript" src="/eel.js"></script>
+
+  <!-- ES Modules Entrypoint -->
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+
+  <main id="app-layout">
+    <!-- ====================================================================
+         Pane 1 (20%): Inputs & Storage
+         ==================================================================== -->
+    <sidebar-pane>
+      <div class="sidebar-top">
+        <div class="pane-title">Nowy Projekt</div>
+        <button id="btn-pick-ods" class="btn btn-primary">
+          <span>📂</span> Importuj .ods / .xlsx
+        </button>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
+      <div class="sidebar-bottom">
+        <div class="pane-title">Katalog projektów</div>
+        <ul id="storage-dir-list" class="dir-list">
+          <li class="empty-state-text">Brak projektów w katalogu</li>
+        </ul>
+      </div>
+    </sidebar-pane>
+
+    <!-- ====================================================================
+         Pane 2 (25%): Document Metadata & Triggers
+         ==================================================================== -->
+    <form-pane>
+      <div class="pane-title">Metadane Dokumentu</div>
+
+      <div class="form-scroll-wrapper">
+        <div class="field-group">
+          <label class="field-label" for="input-nazwa">Nazwa szkolenia</label>
+          <input type="text" id="input-nazwa" class="input-field" placeholder="np. Nowoczesne metody nauczania" />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="input-numer">Numer szkolenia</label>
+          <input type="text" id="input-numer" class="input-field" placeholder="np. 01/05/2024" />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="input-data">Data szkolenia</label>
+          <input type="text" id="input-data" class="input-field" placeholder="np. 12.05.2024" />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="input-miejsce">Miejsce szkolenia</label>
+          <input type="text" id="input-miejsce" class="input-field" placeholder="np. Wieliczka" />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="input-prowadzacy">Prowadzący</label>
+          <input type="text" id="input-prowadzacy" class="input-field" placeholder="np. Jan Kowalski" />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="input-czas-trwania">Czas trwania</label>
+          <input type="text" id="input-czas-trwania" class="input-field" placeholder="np. 8 godz" />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="input-godziny">Godziny</label>
+          <input type="text" id="input-godziny" class="input-field" placeholder="np. 09:00 - 16:00" />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="input-data-wystawienia">Data wystawienia</label>
+          <input type="text" id="input-data-wystawienia" class="input-field" placeholder="np. 12.05.2024" />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label" for="input-tematyka">Tematyka</label>
+          <textarea id="input-tematyka" class="textarea-field" placeholder="1. Wprowadzenie&#10;2. Warsztat praktyczny&#10;3. Podsumowanie"></textarea>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <div id="status-message" class="status-box"></div>
+        <button id="btn-generate" class="btn btn-primary btn-generate-main">
+          <span>⚡</span> Generuj PDF
+        </button>
+        <button id="btn-open-explorer" class="btn btn-tonal">
+          <span>📁</span> Otwórz w menedżerze plików
+        </button>
+      </div>
+    </form-pane>
+
+    <!-- ====================================================================
+         Pane 3 (55%): The Data Grid
+         ==================================================================== -->
+    <spreadsheet-pane>
+      <div class="spreadsheet-header">
+        <div class="grid-title-area">
+          <div class="pane-title" style="margin-bottom: 0;">Lista Uczestników</div>
+          <div id="participant-count-chip" class="counter-chip">0 uczestników</div>
+        </div>
+      </div>
+
+      <div class="table-scroll-wrapper">
+        <table id="data-table">
+          <thead>
+            <tr>
+              <th class="col-idx">#</th>
+              <th>Imię i nazwisko</th>
+              <th>Data urodzenia</th>
+              <th>Miejsce urodzenia</th>
+              <th>Placówka</th>
+              <th class="col-action"></th>
+            </tr>
+          </thead>
+          <tbody id="data-table-body">
+            <!-- Dynamically populated rows -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-footer">
+        <button id="btn-add-row" class="btn btn-tonal">
+          <span>➕</span> Dodaj uczestnika
+        </button>
+        <span class="table-hint">Tab / Enter przechodzi do kolejnej komórki</span>
+      </div>
+    </spreadsheet-pane>
+  </main>
+
+</body>
+</html>
