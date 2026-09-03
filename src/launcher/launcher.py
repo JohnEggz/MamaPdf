@@ -1,16 +1,18 @@
-import os
-import sys
-import json
-import urllib.request
-import urllib.error
-import subprocess
 import hashlib
-import zipfile
+import os
+import re
 import shutil
 import stat
+import subprocess
+import sys
+import tempfile
 import threading
+import urllib.error
+import urllib.request
+import zipfile
+from pathlib import Path
 
-# Attempt to load Tkinter for the GUI splash screen
+# Attempt Tkinter GUI splash, fallback to CLI
 try:
     import tkinter as tk
     from tkinter import font
@@ -19,178 +21,273 @@ except ImportError:
     HAS_TKINTER = False
 
 # --- CONFIGURATION ---
-TEST_MODE = False
-GITHUB_REPO = "JohnEggz/JohnOdsToPdf" 
+GITHUB_REPO = "JohnEggz/JohnOdsToPdf"
+APP_NAME = "GeneratorZaswiadczen"
 
 if sys.platform == "win32":
-    BASE_DIR = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "GeneratorZaswiadczen")
-    EXE_NAME = "GeneratorZaswiadczen.exe"
-    ZIP_NAME = "GeneratorZaswiadczen-Windows.zip"
+    EXE_NAME = f"{APP_NAME}.exe"
+    ZIP_NAME = f"{APP_NAME}-Windows.zip"
+    BASE_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / APP_NAME
 else:
-    BASE_DIR = os.path.join(os.path.expanduser("~"), ".local", "share", "GeneratorZaswiadczen")
-    EXE_NAME = "GeneratorZaswiadczen"
-    ZIP_NAME = "GeneratorZaswiadczen-Linux.zip"
+    EXE_NAME = APP_NAME
+    ZIP_NAME = f"{APP_NAME}-Linux.zip"
+    BASE_DIR = Path.home() / ".local" / "share" / APP_NAME
 
-os.makedirs(BASE_DIR, exist_ok=True)
+VERSION_FILE = BASE_DIR / "version.txt"
+APP_DIR = BASE_DIR / APP_NAME
+EXE_PATH = APP_DIR / EXE_NAME
 
-VERSION_FILE = os.path.join(BASE_DIR, "version.txt")
-ZIP_PATH = os.path.join(BASE_DIR, ZIP_NAME)
-SHA_PATH = os.path.join(BASE_DIR, f"{ZIP_NAME}.sha256")
-APP_DIR = os.path.join(BASE_DIR, "GeneratorZaswiadczen")
-EXE_PATH = os.path.join(APP_DIR, EXE_NAME)
 
-def get_local_version():
-    if os.path.exists(VERSION_FILE):
-        with open(VERSION_FILE, "r") as f:
-            return f.read().strip()
+# --- VERSION COMPARISON ---
+def parse_version(tag: str) -> tuple[int, ...]:
+    """Converts a semantic version tag (e.g., 'v1.2.3') into a comparable tuple of ints."""
+    clean = re.sub(r"^[^\d]*", "", tag.strip())
+    tokens = re.split(r"[.\-+]", clean)
+    nums = []
+    for token in tokens:
+        if token.isdigit():
+            nums.append(int(token))
+        else:
+            break
+    return tuple(nums) if nums else (0, 0, 0)
+
+
+def get_local_version() -> str:
+    if VERSION_FILE.is_file():
+        try:
+            return VERSION_FILE.read_text(encoding="utf-8").strip()
+        except OSError:
+            pass
     return "v0.0.0"
 
-def set_local_version(version):
-    with open(VERSION_FILE, "w") as f:
-        f.write(version)
 
-def download_file(url, dest, update_ui_status):
-    update_ui_status(f"Pobieranie aktualizacji...")
-    req = urllib.request.Request(url, headers={"User-Agent": "Auto-Updater"})
-    with urllib.request.urlopen(req, timeout=10) as response, open(dest, 'wb') as out_file:
-        shutil.copyfileobj(response, out_file)
+def set_local_version(tag: str) -> None:
+    VERSION_FILE.parent.mkdir(parents=True, exist_ok=True)
+    VERSION_FILE.write_text(tag, encoding="utf-8")
 
-def verify_sha256(file_path, expected_hash_path):
-    with open(expected_hash_path, "r") as f:
-        expected_hash = f.read().strip().split()[0].lower()
-    sha256_hash = hashlib.sha256()
+
+# --- NETWORK & VERIFICATION ---
+def get_latest_release_tag() -> str | None:
+    """
+    Finds the latest tag using GitHub redirect URL headers.
+    Bypasses GitHub's 60 req/hr unauthenticated API rate limits.
+    """
+    url = f"https://github.com/{GITHUB_REPO}/releases/latest"
+    req = urllib.request.Request(
+        url,
+        headers={"User-Agent": f"{APP_NAME}-Launcher"},
+        method="HEAD",
+    )
+    try:
+        # Don't auto-redirect so we can inspect Location header
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                return None
+
+        opener = urllib.request.build_opener(NoRedirect)
+        with opener.open(req, timeout=7) as resp:
+            pass
+    except urllib.error.HTTPError as e:
+        if e.code in (301, 302):
+            redirect_url = e.headers.get("Location", "")
+            # Redirect URL is in format https://github.com/.../releases/tag/vX.Y.Z
+            return redirect_url.rstrip("/").split("/")[-1]
+    except Exception:
+        pass
+    return None
+
+
+def download_stream(url: str, dest: Path, status_cb, chunk_size: int = 65536) -> None:
+    req = urllib.request.Request(url, headers={"User-Agent": f"{APP_NAME}-Launcher"})
+    with urllib.request.urlopen(req, timeout=15) as response, open(dest, "wb") as out_file:
+        while chunk := response.read(chunk_size):
+            out_file.write(chunk)
+
+
+def verify_sha256(file_path: Path, expected_hash_file: Path) -> bool:
+    expected = expected_hash_file.read_text(encoding="utf-8").strip().split()[0].lower()
+    hasher = hashlib.sha256()
     with open(file_path, "rb") as f:
-        for byte_block in iter(lambda: f.read(4096), b""):
-            sha256_hash.update(byte_block)
-    return sha256_hash.hexdigest().lower() == expected_hash
+        while chunk := f.read(65536):
+            hasher.update(chunk)
+    return hasher.hexdigest().lower() == expected
 
-def launch_app(root=None):
-    if os.path.exists(EXE_PATH):
+
+# --- APPLICATION LAUNCHER ---
+def launch_app(root: tk.Tk | None = None) -> None:
+    if EXE_PATH.is_file():
         if sys.platform == "win32":
-            subprocess.Popen([EXE_PATH], creationflags=subprocess.DETACHED_PROCESS, cwd=APP_DIR)
+            # 0x00000008 = DETACHED_PROCESS
+            subprocess.Popen(
+                [str(EXE_PATH)],
+                creationflags=0x00000008,
+                cwd=str(APP_DIR),
+                close_fds=True,
+            )
         else:
-            subprocess.Popen([EXE_PATH], start_new_session=True, cwd=APP_DIR)
+            subprocess.Popen(
+                [str(EXE_PATH)],
+                start_new_session=True,
+                cwd=str(APP_DIR),
+            )
     else:
-        print("Błąd: Nie znaleziono aplikacji do uruchomienia.")
-        
+        print(f"Error: Target executable not found at {EXE_PATH}")
+
     if root:
         root.after(0, root.destroy)
 
-def core_update_logic(update_ui_callback, on_complete_callback):
-    """The main updater logic decoupled from the UI."""
-    update_ui_callback("Sprawdzanie aktualizacji...")
-    local_version = get_local_version()
 
-    if TEST_MODE:
-        url = "http://localhost:8000/release.json"
-    else:
-        url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+# --- ATOMIC UPDATE PIPELINE ---
+def perform_update(tag: str, status_cb) -> bool:
+    """Safely downloads, unpacks, and replaces the application directory."""
+    download_base = f"https://github.com/{GITHUB_REPO}/releases/download/{tag}"
+    zip_url = f"{download_base}/{ZIP_NAME}"
+    sha_url = f"{download_base}/{ZIP_NAME}.sha256"
 
-    req = urllib.request.Request(url, headers={"User-Agent": "Auto-Updater"})
-    
-    try:
-        with urllib.request.urlopen(req, timeout=5) as response:
-            release = json.loads(response.read().decode('utf-8'))
-    except (urllib.error.URLError, Exception):
-        update_ui_callback("Brak połączenia. Uruchamianie...")
-        on_complete_callback()
-        return
+    BASE_DIR.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=BASE_DIR) as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        zip_dest = tmp_dir / ZIP_NAME
+        sha_dest = tmp_dir / f"{ZIP_NAME}.sha256"
+        staging_dir = tmp_dir / "staged"
 
-    latest_version = release.get("tag_name", "v0.0.0")
-    if latest_version <= local_version and os.path.exists(EXE_PATH):
-        update_ui_callback("Aplikacja jest aktualna. Uruchamianie...")
-        on_complete_callback()
-        return
-
-    update_ui_callback(f"Znaleziono nową wersję: {latest_version}")
-    
-    if TEST_MODE:
-        zip_url = f"http://localhost:8000/{ZIP_NAME}"
-        sha_url = f"http://localhost:8000/{ZIP_NAME}.sha256"
-    else:
-        zip_url, sha_url = None, None
-        for asset in release.get("assets", []):
-            if asset["name"] == ZIP_NAME: zip_url = asset["browser_download_url"]
-            elif asset["name"] == f"{ZIP_NAME}.sha256": sha_url = asset["browser_download_url"]
-
-    if zip_url and sha_url:
+        status_cb("Pobieranie plików...")
         try:
-            download_file(zip_url, ZIP_PATH, update_ui_callback)
-            download_file(sha_url, SHA_PATH, update_ui_callback)
-
-            update_ui_callback("Weryfikacja plików...")
-            if verify_sha256(ZIP_PATH, SHA_PATH):
-                update_ui_callback("Instalowanie aktualizacji...")
-                if os.path.exists(APP_DIR):
-                    shutil.rmtree(APP_DIR)
-                with zipfile.ZipFile(ZIP_PATH, 'r') as zip_ref:
-                    zip_ref.extractall(BASE_DIR)
-                if sys.platform != "win32" and os.path.exists(EXE_PATH):
-                    st = os.stat(EXE_PATH)
-                    os.chmod(EXE_PATH, st.st_mode | stat.S_IEXEC)
-                set_local_version(latest_version)
-                update_ui_callback("Gotowe! Uruchamianie...")
-            else:
-                update_ui_callback("Błąd: Uszkodzony plik. Uruchamianie starej wersji...")
+            download_stream(zip_url, zip_dest, status_cb)
+            download_stream(sha_url, sha_dest, status_cb)
         except Exception as e:
-            update_ui_callback(f"Wystąpił błąd: {e}")
-        finally:
-            if os.path.exists(ZIP_PATH): os.remove(ZIP_PATH)
-            if os.path.exists(SHA_PATH): os.remove(SHA_PATH)
+            status_cb(f"Błąd pobierania: {e}")
+            return False
+
+        status_cb("Weryfikacja sumy kontrolnej...")
+        try:
+            if not verify_sha256(zip_dest, sha_dest):
+                status_cb("Błąd: Uszkodzona suma kontrolna SHA256.")
+                return False
+        except Exception as e:
+            status_cb(f"Błąd weryfikacji: {e}")
+            return False
+
+        status_cb("Wypakowywanie...")
+        try:
+            with zipfile.ZipFile(zip_dest, "r") as zf:
+                zf.extractall(staging_dir)
+        except Exception as e:
+            status_cb(f"Błąd rozpakowywania: {e}")
+            return False
+
+        # Find the inner payload root
+        extracted_exe = list(staging_dir.rglob(EXE_NAME))
+        if not extracted_exe:
+            status_cb("Błąd: Archiwum nie zawiera pliku wykonywalnego.")
+            return False
+        extracted_root = extracted_exe[0].parent
+
+        if sys.platform != "win32":
+            extracted_exe[0].chmod(extracted_exe[0].stat().st_mode | stat.S_IEXEC)
+
+        status_cb("Instalowanie...")
+        backup_dir = BASE_DIR / f"{APP_NAME}_backup"
+        try:
+            if APP_DIR.exists():
+                if backup_dir.exists():
+                    shutil.rmtree(backup_dir, ignore_errors=True)
+                APP_DIR.rename(backup_dir)
+
+            shutil.move(str(extracted_root), str(APP_DIR))
+            set_local_version(tag)
+
+            if backup_dir.exists():
+                shutil.rmtree(backup_dir, ignore_errors=True)
+            return True
+
+        except Exception as e:
+            status_cb("Przywracanie poprzedniej wersji...")
+            if backup_dir.exists() and not APP_DIR.exists():
+                backup_dir.rename(APP_DIR)
+            status_cb(f"Błąd instalacji: {e}")
+            return False
+
+
+# --- CONTROLLER ---
+def update_and_launch(status_cb, on_complete):
+    status_cb("Sprawdzanie aktualizacji...")
+    local_tag = get_local_version()
+    latest_tag = get_latest_release_tag()
+
+    needs_update = False
+    if latest_tag:
+        if parse_version(latest_tag) > parse_version(local_tag) or not EXE_PATH.is_file():
+            needs_update = True
+
+    if needs_update and latest_tag:
+        status_cb(f"Aktualizacja do {latest_tag}...")
+        success = perform_update(latest_tag, status_cb)
+        if success:
+            status_cb("Ukończono! Uruchamianie...")
+        else:
+            status_cb("Uruchamianie wersji lokalnej...")
     else:
-        update_ui_callback("Brak plików na serwerze.")
+        status_cb("Aplikacja aktualna. Uruchamianie...")
 
-    on_complete_callback()
+    on_complete()
 
 
-def run_gui_updater():
-    """Runs the updater with the Tkinter splash screen."""
+# --- UI RUNNERS ---
+def run_gui():
     root = tk.Tk()
     root.overrideredirect(True)
-    
-    window_width = 350
-    window_height = 120
-    screen_width = root.winfo_screenwidth()
-    screen_height = root.winfo_screenheight()
-    x = int((screen_width / 2) - (window_width / 2))
-    y = int((screen_height / 2) - (window_height / 2))
-    root.geometry(f"{window_width}x{window_height}+{x}+{y}")
-    
-    root.configure(bg="#4f46e5")
-    status_var = tk.StringVar(value="Inicjalizacja...")
 
-    title_font = font.Font(family="Helvetica", size=14, weight="bold")
-    status_font = font.Font(family="Helvetica", size=10)
-    
-    tk.Label(root, text="Generator Zaświadczeń", fg="white", bg="#4f46e5", font=title_font).pack(pady=(25, 5))
-    tk.Label(root, textvariable=status_var, fg="#c7d2fe", bg="#4f46e5", font=status_font).pack()
+    width, height = 360, 110
+    sw = root.winfo_screenwidth()
+    sh = root.winfo_screenheight()
+    x = (sw - width) // 2
+    y = (sh - height) // 2
+    root.geometry(f"{width}x{height}+{x}+{y}")
+    root.configure(bg="#1e1e2e")
 
-    def ui_callback(msg):
+    status_var = tk.StringVar(value="Ładowanie...")
+    f_title = font.Font(family="Segoe UI" if sys.platform == "win32" else "Helvetica", size=13, weight="bold")
+    f_status = font.Font(family="Segoe UI" if sys.platform == "win32" else "Helvetica", size=9)
+
+    tk.Label(root, text="Generator Zaświadczeń", fg="#cdd6f4", bg="#1e1e2e", font=f_title).pack(pady=(20, 4))
+    tk.Label(root, textvariable=status_var, fg="#a6adc8", bg="#1e1e2e", font=f_status).pack()
+
+    def ui_callback(msg: str):
         root.after(0, lambda: status_var.set(msg))
-        
-    def complete_callback():
-        root.after(1000, lambda: launch_app(root))
 
-    threading.Thread(target=core_update_logic, args=(ui_callback, complete_callback), daemon=True).start()
+    def complete_callback():
+        root.after(700, lambda: launch_app(root))
+
+    threading.Thread(
+        target=update_and_launch,
+        args=(ui_callback, complete_callback),
+        daemon=True,
+    ).start()
+
     root.mainloop()
 
-def run_cli_updater():
-    """Fallback terminal updater for Linux missing Tkinter libs."""
-    print("="*40)
-    print(" Generator Zaświadczeń - Updater")
-    print("="*40)
-    
-    def ui_callback(msg):
+
+def run_cli():
+    print("=" * 40)
+    print(f" {APP_NAME} - Launcher")
+    print("=" * 40)
+
+    def ui_callback(msg: str):
         print(f"[*] {msg}")
-        
+
     def complete_callback():
         launch_app()
-        
-    core_update_logic(ui_callback, complete_callback)
+
+    update_and_launch(ui_callback, complete_callback)
+
+
+def main():
+    if HAS_TKINTER:
+        run_gui()
+    else:
+        run_cli()
 
 
 if __name__ == "__main__":
-    if HAS_TKINTER:
-        run_gui_updater()
-    else:
-        run_cli_updater()
+    main()

@@ -1,7 +1,7 @@
 [project]
 name = "johnmamapdfv2"
 version = "0.1.0"
-description = "Add your description here"
+description = "Certificate & Attendance PDF generator"
 readme = "README.md"
 authors = [
     { name = "JohnEggz", email = "avocadojuiceav@gmail.com" }
@@ -15,13 +15,21 @@ dependencies = [
 ]
 
 [project.scripts]
-johnmamapdfv2 = "johnmamapdfv2:main"
+johnmamapdfv2 = "johnmamapdfv2.app:run"
+generator-launcher = "launcher.launcher:main"
 
 [build-system]
-requires = ["uv_build>=0.12.5,<0.13.0"]
-build-backend = "uv_build"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "src/johnmamapdfv2",
+    "src/launcher",
+]
 
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    "pyinstaller>=6.0.0",
 ]
