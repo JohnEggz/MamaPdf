@@ -21,7 +21,7 @@ except ImportError:
     HAS_TKINTER = False
 
 # --- CONFIGURATION ---
-GITHUB_REPO = "JohnEggz/JohnOdsToPdf"
+GITHUB_REPO = "JohnEggz/MamaPdf"
 APP_NAME = "GeneratorZaswiadczen"
 
 if sys.platform == "win32":
@@ -79,19 +79,15 @@ def get_latest_release_tag() -> str | None:
         method="HEAD",
     )
     try:
-        # Don't auto-redirect so we can inspect Location header
-        class NoRedirect(urllib.request.HTTPRedirectHandler):
-            def redirect_request(self, req, fp, code, msg, headers, newurl):
-                return None
-
-        opener = urllib.request.build_opener(NoRedirect)
-        with opener.open(req, timeout=7) as resp:
-            pass
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            final_url = resp.url
+            if "/releases/tag/" in final_url:
+                return final_url.rstrip("/").split("/")[-1]
     except urllib.error.HTTPError as e:
         if e.code in (301, 302):
             redirect_url = e.headers.get("Location", "")
-            # Redirect URL is in format https://github.com/.../releases/tag/vX.Y.Z
-            return redirect_url.rstrip("/").split("/")[-1]
+            if "/releases/tag/" in redirect_url:
+                return redirect_url.rstrip("/").split("/")[-1]
     except Exception:
         pass
     return None
@@ -177,24 +173,34 @@ def perform_update(tag: str, status_cb) -> bool:
             return False
 
         # Find the inner payload root
-        extracted_exe = list(staging_dir.rglob(EXE_NAME))
+        extracted_exe = [f for f in staging_dir.rglob(EXE_NAME) if f.is_file()]
         if not extracted_exe:
             status_cb("Błąd: Archiwum nie zawiera pliku wykonywalnego.")
             return False
-        extracted_root = extracted_exe[0].parent
+        exe_file = extracted_exe[0]
+        extracted_root = exe_file.parent
 
         if sys.platform != "win32":
-            extracted_exe[0].chmod(extracted_exe[0].stat().st_mode | stat.S_IEXEC)
+            exe_file.chmod(exe_file.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
         status_cb("Instalowanie...")
         backup_dir = BASE_DIR / f"{APP_NAME}_backup"
         try:
+            if backup_dir.exists():
+                shutil.rmtree(backup_dir, ignore_errors=True)
             if APP_DIR.exists():
-                if backup_dir.exists():
-                    shutil.rmtree(backup_dir, ignore_errors=True)
                 APP_DIR.rename(backup_dir)
 
+            if APP_DIR.exists():
+                shutil.rmtree(APP_DIR, ignore_errors=True)
+
             shutil.move(str(extracted_root), str(APP_DIR))
+
+            if sys.platform != "win32":
+                final_exe = APP_DIR / EXE_NAME
+                if final_exe.is_file():
+                    final_exe.chmod(final_exe.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
             set_local_version(tag)
 
             if backup_dir.exists():
@@ -226,9 +232,15 @@ def update_and_launch(status_cb, on_complete):
         if success:
             status_cb("Ukończono! Uruchamianie...")
         else:
-            status_cb("Uruchamianie wersji lokalnej...")
+            if EXE_PATH.is_file():
+                status_cb("Uruchamianie wersji lokalnej...")
+            else:
+                status_cb("Błąd instalacji.")
     else:
-        status_cb("Aplikacja aktualna. Uruchamianie...")
+        if EXE_PATH.is_file():
+            status_cb("Aplikacja aktualna. Uruchamianie...")
+        else:
+            status_cb("Błąd: Nie znaleziono aplikacji ani aktualizacji.")
 
     on_complete()
 
@@ -257,7 +269,10 @@ def run_gui():
         root.after(0, lambda: status_var.set(msg))
 
     def complete_callback():
-        root.after(700, lambda: launch_app(root))
+        if EXE_PATH.is_file():
+            root.after(700, lambda: launch_app(root))
+        else:
+            root.after(3000, root.destroy)
 
     threading.Thread(
         target=update_and_launch,
