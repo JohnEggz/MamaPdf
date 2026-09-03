@@ -64,7 +64,7 @@ jobs:
             zip_name: GeneratorZaswiadczen-Windows.zip
             launcher_ext: ".exe"
             archive_cmd: |
-              Compress-Archive -Path dist\GeneratorZaswiadczen -DestinationPath GeneratorZaswiadczen-Windows.zip
+              Compress-Archive -Path dist\GeneratorZaswiadczen -DestinationPath GeneratorZaswiadczen-Windows.zip -Force
               $hash = (Get-FileHash -Path GeneratorZaswiadczen-Windows.zip -Algorithm SHA256).Hash.ToLower()
               Set-Content -Path "GeneratorZaswiadczen-Windows.zip.sha256" -Value "$hash  GeneratorZaswiadczen-Windows.zip"
 
@@ -105,15 +105,16 @@ jobs:
           --noconsole
           src/launcher/launcher.py
 
-      # --- Archive Generator & Calculate SHA256 ---
-      - name: Package Payload and Compute SHA256
+      # --- Archive Generator & Calculate SHA256 (Native Shells) ---
+      - name: Package Payload and Compute SHA256 (Linux)
+        if: runner.os == 'Linux'
         shell: bash
-        run: |
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            powershell -Command "${{ matrix.archive_cmd }}"
-          else
-            ${{ matrix.archive_cmd }}
-          fi
+        run: ${{ matrix.archive_cmd }}
+
+      - name: Package Payload and Compute SHA256 (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ${{ matrix.archive_cmd }}
 
       # --- Upload Build Artifacts to Workflow Run ---
       - name: Upload Artifacts
