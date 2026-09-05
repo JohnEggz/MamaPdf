@@ -49,17 +49,17 @@ def test_load_participants_from_file():
         "locked": False,
     }
     assert participants[1] == {
-        "imie_nazwisko": "Robert Sigma",
-        "data_urodzenia": "14.06.1998",
-        "miejsce_urodzenia": "Kraków",
-        "placowka": "Szkoła",
-        "locked": False,
-    }
-    assert participants[2] == {
         "imie_nazwisko": "Mike Hawk",
         "data_urodzenia": "20.11.1964",
         "miejsce_urodzenia": "Świeboniowice",
         "placowka": "Szkoła Podstawowa nr 9999 w krakowie",
+        "locked": False,
+    }
+    assert participants[2] == {
+        "imie_nazwisko": "Robert Sigma",
+        "data_urodzenia": "14.06.1998",
+        "miejsce_urodzenia": "Kraków",
+        "placowka": "Szkoła",
         "locked": False,
     }
 
@@ -338,4 +338,27 @@ def test_process_survey_file_with_mocked_sheet(tmp_path: Path):
         assert "Uwaga 1" in output
         assert "Tak" in output
 
+def test_parse_participants_polish_surname_sorting():
+    grid = [
+        ["Timestamp", "Name", "Birth date", "Birth place", "Workplace"],
+        ["ts1", "Jan Żurawski", "01.01.1990", "Warszawa", "Szkoła 1"],
+        ["ts2", "Adam Ziobro", "01.01.1990", "Warszawa", "Szkoła 2"],
+        ["ts3", "Piotr Źrebiec", "01.01.1990", "Warszawa", "Szkoła 3"],
+        ["ts4", "Anna Bąk", "01.01.1990", "Warszawa", "Szkoła 4"],
+        ["ts5", "Maria Baran", "01.01.1990", "Warszawa", "Szkoła 5"],
+        ["ts6", "Katarzyna Łukasiak", "01.01.1990", "Warszawa", "Szkoła 6"],
+        ["ts7", "Ewa Lasocka", "01.01.1990", "Warszawa", "Szkoła 7"],
+    ]
+    participants = parse_participants(grid)
+    names = [p["imie_nazwisko"] for p in participants]
 
+    # Expected order: Baran -> Bąk -> Lasocka -> Łukasiak -> Ziobro -> Źrebiec -> Żurawski
+    assert names == [
+        "Maria Baran",
+        "Anna Bąk",
+        "Ewa Lasocka",
+        "Katarzyna Łukasiak",
+        "Adam Ziobro",
+        "Piotr Źrebiec",
+        "Jan Żurawski",
+    ]

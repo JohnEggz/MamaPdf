@@ -50,6 +50,34 @@ MULTI_CHOICE_KEY = [
 # Core Sheet Reader
 # ============================================================================
 
+# Polish alphabet collation order mapping
+_PL_ORDER = "aąbcćdeęfghijklłmnńoóprsśtuwyzźż"
+_PL_TRANSLATION_MAP = {ch: i for i, ch in enumerate(_PL_ORDER)}
+
+
+def _polish_sort_key(text: str) -> list[int]:
+    """Generates a tuple/list of character ranks according to Polish alphabet order."""
+    return [_PL_TRANSLATION_MAP.get(ch, ord(ch) + 1000) for ch in text.lower()]
+
+
+def _participant_sort_key(participant: Participant) -> tuple[list[int], list[int]]:
+    """
+    Sorts by surname (assumed to always be the 2nd word: name_parts[1]), 
+    followed by the remaining parts of the name.
+    """
+    full_name = participant["imie_nazwisko"].strip()
+    name_parts = full_name.split()
+
+    if len(name_parts) > 1:
+        surname = name_parts[1]
+        # Keep everything else (e.g. first name, 2nd surname/middle names) as secondary tiebreaker
+        other_names = " ".join([name_parts[0]] + name_parts[2:])
+    else:
+        surname = full_name
+        other_names = ""
+
+    return (_polish_sort_key(surname), _polish_sort_key(other_names))
+
 def read_raw_sheet(file_path: Path):
     workbook = CalamineWorkbook.from_path(file_path)  # pyright: ignore[reportUnknownMemberType]
     if not workbook.sheet_names:
@@ -81,6 +109,8 @@ def parse_participants(grid: Sequence[Sequence[object]]) -> list[Participant]:
             "placowka": str(row[4]).strip(),
             "locked": False,
         })
+
+    participants.sort(key=_participant_sort_key)
 
     return participants
 
