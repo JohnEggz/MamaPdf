@@ -10,12 +10,15 @@
 // Helper for the blue decorative lines
 #let blue-line = line(length: 100%, stroke: 1.5pt + primary-color)
 
-// Helper to format the Tematyka list on Page 2
-// #let format-list(txt) = {
-//   let lines = txt.split("\n").filter(it => it.trim() != "")
-//   enum(..lines.map(l => l.replace(regex("^\d+\.\s*"), "")))
-// }
+// Footer image alignment: relative x/y offsets per image (tune as needed)
+#let krakow-dx = 0cm
+#let krakow-dy = -1cm
+#let signature-dx = 0.5cm
+#let signature-dy = 0cm
+#let kot-dx = -0.5cm
+#let kot-dy = -0.5cm
 
+// --- GENERATION LOOP ---
 #for (i, p) in participants.enumerate() {
   // --- PAGE 1: FRONT ---
   
@@ -29,13 +32,10 @@
       dir: ttb,
       spacing: 1.2em,
       
-      [#tr.numer_szkolenia/#(i + 1)],
-      v(0.5cm),
-
       blue-line,
       v(0.5cm),
       align(center, text(22pt, fill: primary-color)[ZAŚWIADCZENIE]),
-      align(center, text(12pt, fill: primary-color)[O UKOŃCZENIU FORMY DOSKONALENIA ZAWODOWEGO]),
+      // align(center, text(12pt, fill: primary-color)[O UKOŃCZENIU FORMY DOSKONALENIA ZAWODOWEGO]),
       v(0.5cm),
       blue-line,
       
@@ -45,9 +45,9 @@
       
       v(1cm),
       align(center)[
-        urodzony/a: #p.data_urodzenia r., #p.miejsce_urodzenia \
+        // urodzony/a: #p.data_urodzenia r., #p.miejsce_urodzenia \
         #v(1cm)
-        ukończył/a szkolenie:
+        brał/a udział w webinarze:
       ],
       
       align(center, text(18pt)[„#tr.nazwa_szkolenia”]),
@@ -57,45 +57,36 @@
         columns: (1fr, 1fr),
         align: center,
         [w dniu: #tr.data_szkolenia r.],
-        // [miejsce: #(if p.placowka == "" { tr.miejsce_szkolenia } else { p.placowka })],
         [w wymiarze: #tr.czas_trwania]
       ),
       
       v(1cm),
       align(center)[
-        zorganizowane przez Niepubliczną Placówkę Doskonalenia Nauczycieli \
-        Best Practice "Edukacja" w Wieliczce
+        zorganizowanym przez Niepubliczną Placówkę Doskonalenia Nauczycieli \
+        Best Practice "Edukacja" we współpracy z Urzędem Miasta Krakowa \ oraz Specjalistyczną Poradnią Psychologiczno-Pedagogiczną "Krakowskim Ośrodkiem Terapii"
       ],
+      v(0.5cm),
     )
   ]
 
-  // Footer Info
-  place(bottom + left, dy: -1cm)[
-    Zaświadczenie wydano:
-    #v(0.1cm)
-    Wieliczka, #tr.data_wystawienia r.
+  // Footer Info & 3 images at the bottom (Kraków, signature, cat logo)
+  place(bottom + left, dy: -0.5cm)[
+    #stack(
+      dir: ttb,
+      spacing: 1cm,
+      [
+        Zaświadczenie wydano: \
+        Wieliczka, #tr.data_wystawienia r.
+      ],
+      grid(
+        columns: (1fr, 1fr, 1fr),
+        align: (left, center, right),
+        move(dx: krakow-dx, dy: krakow-dy, image("logo_krakow.jpg", width: 5cm)),
+        move(dx: signature-dx, dy: signature-dy, image("signature_mama.png", width: 4cm)),
+        move(dx: kot-dx, dy: kot-dy, image("kot-logo-1.png", width: 3cm)),
+      )
+    )
   ]
-
-  pagebreak()
-
-  // --- PAGE 2: BACK (Plan szkolenia) ---
-  
-  // Re-place logo for branding on back
-  align(right, image("logo.png", width: 4cm))
-  
-  v(4cm)
-  // [== Program Szkolenia:]
-  // v(0.5cm)
-  //
-  table(
-    columns: (1fr),
-    inset: 10pt,
-    align: horizon,
-    fill: luma(250),
-    [*Program szkolenia:*],
-    // format-list(tr.tematyka)
-    [#eval(tr.tematyka, mode: "markup")]
-  )
 
   // Avoid a blank page after the last participant
   if i < participants.len() - 1 {

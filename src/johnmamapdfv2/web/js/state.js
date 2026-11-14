@@ -75,6 +75,7 @@ class AppStore {
       data_urodzenia: "",
       miejsce_urodzenia: "",
       placowka: "",
+      email: "",
       locked: false,
     };
     this.document.participants.push(item);

@@ -6,9 +6,27 @@ from typing import Any
 from johnmamapdfv2.paths import get_workspace_dir
 
 
+_INVALID_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+_WINDOWS_RESERVED_NAMES = {
+    "CON", "PRN", "AUX", "NUL",
+    *(f"COM{i}" for i in range(1, 10)),
+    *(f"LPT{i}" for i in range(1, 10)),
+}
+
+
+def sanitize_filename_component(text: str) -> str:
+    """Sanitizes a single path component (file name segment) for Linux/Windows."""
+    cleaned = _INVALID_FILENAME_CHARS.sub("_", str(text))
+    cleaned = re.sub(r"\s+", "_", cleaned)
+    cleaned = cleaned.strip(" ._")
+    if cleaned.upper() in _WINDOWS_RESERVED_NAMES:
+        cleaned = f"_{cleaned}"
+    return cleaned
+
+
 def sanitize_project_name(name: str) -> str:
     """Sanitizes a string to be a valid folder name on Linux/Windows."""
-    cleaned = re.sub(r'[\\/*?:"<>|]', "_", name).strip()
+    cleaned = sanitize_filename_component(name)
     return cleaned or "nowy_projekt"
 
 

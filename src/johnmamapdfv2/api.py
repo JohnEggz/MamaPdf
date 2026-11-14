@@ -48,7 +48,7 @@ def api_get_initial_data() -> dict[str, Any]:
 @eel.expose
 def api_pick_spreadsheet() -> dict[str, Any]:
     """
-    Opens native OS dialog to pick .ods/.xlsx.
+    Opens native OS dialog to pick .ods/.xlsx/.csv.
     Creates a brand new project directory in the workspace, sets it as active,
     parses participants, and auto-saves the project immediately.
     """
@@ -142,6 +142,7 @@ def api_update_participants(participants: list[dict[str, Any]]) -> dict[str, Any
             "data_urodzenia": str(p.get("data_urodzenia", "")).strip(),
             "miejsce_urodzenia": str(p.get("miejsce_urodzenia", "")).strip(),
             "placowka": str(p.get("placowka", "")).strip(),
+            "email": str(p.get("email", "")).strip(),
             "locked": bool(p.get("locked", False)),
         })
     state.set_participants(typed_participants)
@@ -157,6 +158,7 @@ def api_add_participant(participant: dict[str, Any] | None = None) -> dict[str, 
             "data_urodzenia": str(participant.get("data_urodzenia", "")),
             "miejsce_urodzenia": str(participant.get("miejsce_urodzenia", "")),
             "placowka": str(participant.get("placowka", "")),
+            "email": str(participant.get("email", "")),
             "locked": bool(participant.get("locked", False)),
         }
     else:
@@ -165,6 +167,7 @@ def api_add_participant(participant: dict[str, Any] | None = None) -> dict[str, 
             "data_urodzenia": "",
             "miejsce_urodzenia": "",
             "placowka": "",
+            "email": "",
             "locked": False,
         }
     added = state.add_participant(p)
@@ -204,6 +207,7 @@ def api_generate_pdfs(
                 "data_urodzenia": str(p.get("data_urodzenia", "")).strip(),
                 "miejsce_urodzenia": str(p.get("miejsce_urodzenia", "")).strip(),
                 "placowka": str(p.get("placowka", "")).strip(),
+                "email": str(p.get("email", "")).strip(),
                 "locked": bool(p.get("locked", False)),
             })
         state.set_participants(typed_participants)
@@ -233,6 +237,8 @@ def api_generate_pdfs(
             "output_dir": str(target_dir),
             "certificate_pdf": str(results["certificate"]),
             "attendance_pdf": str(results["attendance"]),
+            "certificates_dir": str(results["certificates_dir"]),
+            "certificate_count": len(results["individual_certificates"]),
             "config_json": str(config_path),
             "message": f"Wygenerowano PDF w projekcie: {target_dir.name}",
             "storage_projects": list_workspace_projects(),

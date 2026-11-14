@@ -43,14 +43,14 @@ def _pick_file_tkinter(title: str, file_types: list[tuple[str, str]]) -> Path | 
         return None
 
 
-def pick_spreadsheet_file(title: str = "Wybierz arkusz (.ods / .xlsx)") -> Path | None:
-    """Opens native dialog for selecting spreadsheet (.ods, .xlsx, .xls)."""
+def pick_spreadsheet_file(title: str = "Wybierz arkusz (.ods / .xlsx / .csv)") -> Path | None:
+    """Opens native dialog for selecting spreadsheet (.ods, .xlsx, .xls, .csv)."""
     filters_zenity = [
-        ("Arkusze kalkulacyjne (*.ods, *.xlsx)", "*.ods *.xlsx *.ODS *.XLSX"),
+        ("Arkusze i CSV (*.ods, *.xlsx, *.csv)", "*.ods *.xlsx *.csv *.ODS *.XLSX *.CSV"),
         ("Wszystkie pliki", "*"),
     ]
     filters_tk = [
-        ("Arkusze kalkulacyjne (*.ods, *.xlsx)", "*.ods *.xlsx *.ODS *.XLSX"),
+        ("Arkusze i CSV (*.ods, *.xlsx, *.csv)", "*.ods *.xlsx *.csv *.ODS *.XLSX *.CSV"),
         ("Wszystkie pliki", "*.*"),
     ]
 

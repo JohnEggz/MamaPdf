@@ -107,6 +107,7 @@ class AppState:
                 "data_urodzenia": "",
                 "miejsce_urodzenia": "",
                 "placowka": "",
+                "email": "",
                 "locked": False,
             }
         else:

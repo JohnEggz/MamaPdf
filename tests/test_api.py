@@ -71,6 +71,14 @@ def test_api_generate_pdfs(tmp_path: Path) -> None:
         assert Path(res["attendance_pdf"]).exists()
         assert Path(res["config_json"]).exists()
 
+        # Per-person certificates live in a 'zaswiadczenia' subfolder
+        assert res["certificate_count"] == 1
+        certs_dir = Path(res["certificates_dir"])
+        assert certs_dir.is_dir()
+        assert certs_dir.name == "zaswiadczenia"
+        assert certs_dir.parent == Path(res["output_dir"])
+        assert [p.name for p in certs_dir.glob("*.pdf")] == ["01_Adam_Mickiewicz.pdf"]
+
 
 def test_api_open_explorer() -> None:
     with patch("johnmamapdfv2.api.open_in_file_manager", return_value=True):

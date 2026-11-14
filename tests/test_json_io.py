@@ -24,6 +24,7 @@ def sample_training_document() -> TrainingDocument:
             "data_urodzenia": "14.06.1990",
             "miejsce_urodzenia": "Warszawa",
             "placowka": "Szkoła Podstawowa nr 1",
+            "email": "anna.nowak@example.com",
             "locked": False,
         },
         {
@@ -31,6 +32,7 @@ def sample_training_document() -> TrainingDocument:
             "data_urodzenia": "22.11.1985",
             "miejsce_urodzenia": "Gdańsk",
             "placowka": "Liceum Ogólnokształcące nr 5",
+            "email": "",
             "locked": True,
         },
     ]

@@ -7,6 +7,8 @@ from johnmamapdfv2.spreadsheet_parser import (
     _normalize_location,
     load_participants,
     parse_participants,
+    parse_participants_csv,
+    read_raw_csv,
     read_raw_sheet,
 )
 
@@ -46,6 +48,7 @@ def test_load_participants_from_file():
         "data_urodzenia": "07.04.1981",
         "miejsce_urodzenia": "Radom",
         "placowka": "SP99 Kraków",
+        "email": "",
         "locked": False,
     }
     assert participants[1] == {
@@ -53,6 +56,7 @@ def test_load_participants_from_file():
         "data_urodzenia": "20.11.1964",
         "miejsce_urodzenia": "Świeboniowice",
         "placowka": "Szkoła Podstawowa nr 9999 w krakowie",
+        "email": "",
         "locked": False,
     }
     assert participants[2] == {
@@ -60,6 +64,7 @@ def test_load_participants_from_file():
         "data_urodzenia": "14.06.1998",
         "miejsce_urodzenia": "Kraków",
         "placowka": "Szkoła",
+        "email": "",
         "locked": False,
     }
 
@@ -95,6 +100,7 @@ def test_parse_participants_empty_names_and_whitespace():
         "data_urodzenia": "03.03.1990",
         "miejsce_urodzenia": "Gdańsk",
         "placowka": "Liceum Ogólnokształcące",
+        "email": "",
         "locked": False,
     }
 
@@ -362,3 +368,115 @@ def test_parse_participants_polish_surname_sorting():
         "Piotr Źrebiec",
         "Jan Żurawski",
     ]
+
+
+# ============================================================================
+# CSV (Zoom-style report) Parser Tests
+# ============================================================================
+
+CSV_HEADERS = [
+    "Login", "E-mail", "Starts at", "Ends at", "Rating",
+    "Rating comment", "Role", "Device", "Adres email", "Imię", "Nazwisko",
+]
+
+
+def _csv_row(
+    login="", email="", adres_email="", imie="", nazwisko="", rating="",
+):
+    return [login, email, "10:00", "11:00", rating, "", "Attendee", "PC", adres_email, imie, nazwisko]
+
+
+def test_parse_participants_csv_basic_and_email_precedence():
+    grid = [
+        CSV_HEADERS,
+        _csv_row(login="anna.k", email="stary@example.com", adres_email="nowy@example.com", imie="Anna", nazwisko="Kowalska", rating="5"),
+    ]
+    participants = parse_participants_csv(grid)
+    assert participants == [{
+        "imie_nazwisko": "Anna Kowalska",
+        "data_urodzenia": "",
+        "miejsce_urodzenia": "",
+        "placowka": "",
+        "email": "nowy@example.com",
+        "locked": False,
+    }]
+
+
+def test_parse_participants_csv_email_falls_back_to_e_mail():
+    grid = [CSV_HEADERS, _csv_row(email="fallback@example.com", imie="Jan", nazwisko="Nowak")]
+    participants = parse_participants_csv(grid)
+    assert participants[0]["email"] == "fallback@example.com"
+
+
+def test_parse_participants_csv_name_fallback_chain_and_skips():
+    grid = [
+        CSV_HEADERS,
+        _csv_row(login="jdoe"),                       # name <- Login
+        _csv_row(adres_email="only@example.com"),     # name <- email
+        _csv_row(rating="3"),                         # nothing usable -> skipped
+        _csv_row(),                                   # empty row -> skipped
+    ]
+    participants = parse_participants_csv(grid)
+    assert [p["imie_nazwisko"] for p in participants] == ["jdoe", "only@example.com"]
+
+
+def test_parse_participants_csv_handles_partial_names_and_empty_cells():
+    grid = [
+        CSV_HEADERS,
+        _csv_row(imie="Maria", nazwisko=""),          # partial name
+        _csv_row(imie="", nazwisko="Zielonka"),       # partial name
+        _csv_row(imie="Piotr", nazwisko="Bąk", rating=""),
+    ]
+    participants = parse_participants_csv(grid)
+    assert [p["imie_nazwisko"] for p in participants] == ["Piotr Bąk", "Maria", "Zielonka"]
+
+
+def test_parse_participants_csv_order_independent_headers():
+    reordered = ["Nazwisko", "Imię", "Adres email", "Login", "E-mail", "Rating"]
+    grid = [
+        reordered,
+        ["Kowalska", "Anna", "a@example.com", "ak", "b@example.com", "4"],
+    ]
+    participants = parse_participants_csv(grid)
+    assert participants[0]["imie_nazwisko"] == "Anna Kowalska"
+    assert participants[0]["email"] == "a@example.com"
+
+
+def test_parse_participants_csv_empty_grid_and_only_headers():
+    assert parse_participants_csv([]) == []
+    assert parse_participants_csv([CSV_HEADERS]) == []
+
+
+def test_parse_participants_csv_missing_identity_columns_raises():
+    grid = [["Starts at", "Ends at", "Rating", "Rating comment"]]
+    with pytest.raises(ValueError, match="Brak rozpoznanych kolumn"):
+        parse_participants_csv(grid)
+
+
+def test_read_raw_csv_semicolon_and_bom(tmp_path: Path):
+    path = tmp_path / "report.csv"
+    content = "\ufeffLogin;E-mail;Imię;Nazwisko\njdoe;j@x.com;Jan;Kowalski\n"
+    path.write_bytes(content.encode("utf-8"))
+    grid = read_raw_csv(path)
+    assert grid[0] == ["Login", "E-mail", "Imię", "Nazwisko"]
+    assert grid[1] == ["jdoe", "j@x.com", "Jan", "Kowalski"]
+
+
+def test_read_raw_csv_cp1250_fallback(tmp_path: Path):
+    path = tmp_path / "cp.csv"
+    content = "Login;Adres email;Imię;Nazwisko\njdoe;j@x.com;Zuzanna;Żółkiewska\n"
+    path.write_bytes(content.encode("cp1250"))
+    grid = read_raw_csv(path)
+    assert grid[1][3] == "Żółkiewska"
+
+
+def test_load_participants_routes_csv(tmp_path: Path):
+    path = tmp_path / "uczestnicy.csv"
+    path.write_text(
+        "Login,E-mail,Adres email,Imię,Nazwisko\n"
+        "jdoe,j@x.com,j@x.com,Jan,Kowalski\n",
+        encoding="utf-8",
+    )
+    participants = load_participants(path)
+    assert participants[0]["imie_nazwisko"] == "Jan Kowalski"
+    assert participants[0]["email"] == "j@x.com"

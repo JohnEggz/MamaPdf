@@ -112,6 +112,9 @@ function createTableRow(p, index) {
     <td>
       <input type="text" class="cell-input" data-field="placowka" value="${escapeHtml(p.placowka || "")}" placeholder="Szkoła Podstawowa..." />
     </td>
+    <td>
+      <input type="text" class="cell-input" data-field="email" value="${escapeHtml(p.email || "")}" placeholder="jan@example.com" />
+    </td>
     <td class="col-action">
       <button type="button" class="btn-icon-only btn-delete-row" title="Usuń wiersz">✕</button>
     </td>
@@ -318,7 +321,7 @@ async function init() {
     await apiAddParticipant(newParticipant);
   }
 
-  // Button: Pick .ods / .xlsx -> creates new project directory
+  // Button: Pick .ods / .xlsx / .csv -> creates new project directory
   dom.btnPickOds.addEventListener("click", async () => {
     try {
       showStatus("Otwieranie okna wyboru arkusza...", "success", 2000);
@@ -451,7 +454,10 @@ async function init() {
       const res = await apiGeneratePdfs(currentMeta, store.document.participants);
 
       if (res.success) {
-        showStatus("✓ Wygenerowano PDF i zaktualizowano projekt!");
+        const individual = res.certificate_count
+          ? ` (${res.certificate_count} zaświadczeń w folderze „zaswiadczenia”)`
+          : "";
+        showStatus(`✓ Wygenerowano PDF i zaktualizowano projekt!${individual}`);
         if (res.storage_projects) {
           store.setStorageProjects(res.storage_projects);
           renderStorageProjects(res.storage_projects, store.activeProjectPath);

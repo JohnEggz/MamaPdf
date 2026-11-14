@@ -16,6 +16,7 @@ class Participant(TypedDict):
     data_urodzenia: str
     miejsce_urodzenia: str
     placowka: str
+    email: str
     locked: bool
 
 class TrainingDocument(TypedDict):

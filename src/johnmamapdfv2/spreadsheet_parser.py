@@ -1,5 +1,6 @@
 from collections import Counter
 from collections.abc import Sequence
+import csv
 import io
 from pathlib import Path
 import re
@@ -107,6 +108,7 @@ def parse_participants(grid: Sequence[Sequence[object]]) -> list[Participant]:
             "data_urodzenia": _normalize_birth_date(str(row[2])),
             "miejsce_urodzenia": _normalize_location(str(row[3])),
             "placowka": str(row[4]).strip(),
+            "email": "",
             "locked": False,
         })
 
@@ -174,8 +176,141 @@ def _normalize_location(raw: str | None) -> str:
 
 
 def load_participants(file_path: Path) -> list[Participant]:
-    raw_data = read_raw_sheet(file_path)
+    path = Path(file_path)
+    if path.suffix.lower() == ".csv":
+        return parse_participants_csv(read_raw_csv(path))
+    raw_data = read_raw_sheet(path)
     return parse_participants(raw_data)
+
+
+# ============================================================================
+# CSV Participant List Parser (e.g. Zoom-style report)
+# ============================================================================
+
+# Header labels (normalized) recognized as the participant's first name.
+_CSV_FIRST_NAME_KEYS = ("imię", "imie")
+# ... last name.
+_CSV_LAST_NAME_KEYS = ("nazwisko",)
+# ... login/display name fallback.
+_CSV_LOGIN_KEYS = ("login",)
+# ... primary e-mail column (Polish), then the English fallback.
+_CSV_EMAIL_PL_KEYS = ("adres email",)
+_CSV_EMAIL_EN_KEYS = ("e-mail", "email")
+
+
+def _decode_csv_bytes(raw: bytes) -> str:
+    """Decodes raw CSV bytes, tolerating Excel-PL encodings and BOMs."""
+    for encoding in ("utf-8-sig", "cp1250", "latin-1"):
+        try:
+            return raw.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return raw.decode("utf-8", errors="replace")
+
+
+def read_raw_csv(file_path: Path) -> list[list[str]]:
+    """Reads a CSV file into a 2D grid, sniffing delimiter and encoding."""
+    raw = Path(file_path).read_bytes()
+    text = _decode_csv_bytes(raw)
+
+    try:
+        dialect = csv.Sniffer().sniff(text[:4096], delimiters=",;\t|")
+    except csv.Error:
+        dialect = csv.excel
+
+    reader = csv.reader(io.StringIO(text), dialect)
+    return [list(row) for row in reader]
+
+
+def _norm_csv_key(header: object) -> str:
+    """Normalizes a CSV header for resilient, order-independent matching."""
+    if header is None:
+        return ""
+    cleaned = str(header).replace("\ufeff", "")
+    return " ".join(cleaned.split()).casefold()
+
+
+def _csv_cell(row: Sequence[object], col: int | None) -> str:
+    """Safely extracts and trims a cell value, treating empties as ''."""
+    if col is None or col >= len(row):
+        return ""
+    value = row[col]
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def _find_csv_column(index: dict[str, int], keys: Sequence[str]) -> int | None:
+    for key in keys:
+        if key in index:
+            return index[key]
+    return None
+
+
+def parse_participants_csv(grid: Sequence[Sequence[object]]) -> list[Participant]:
+    """
+    Parses a participant CSV grid (e.g. a Zoom registration report).
+
+    Columns are matched by header name, so order does not matter and randomly
+    empty cells are tolerated. The participant name is built from Imię/Nazwisko,
+    falling back to Login, then e-mail; rows lacking all of these are skipped.
+    """
+    if not grid:
+        return []
+
+    # Header is the first row that contains any non-empty cell.
+    header_idx: int | None = None
+    for i, row in enumerate(grid):
+        if any(str(cell).strip() for cell in row if cell is not None):
+            header_idx = i
+            break
+    if header_idx is None:
+        return []
+
+    index: dict[str, int] = {}
+    for col, value in enumerate(grid[header_idx]):
+        key = _norm_csv_key(value)
+        if key and key not in index:
+            index[key] = col
+
+    col_first = _find_csv_column(index, _CSV_FIRST_NAME_KEYS)
+    col_last = _find_csv_column(index, _CSV_LAST_NAME_KEYS)
+    col_login = _find_csv_column(index, _CSV_LOGIN_KEYS)
+    col_email_pl = _find_csv_column(index, _CSV_EMAIL_PL_KEYS)
+    col_email_en = _find_csv_column(index, _CSV_EMAIL_EN_KEYS)
+
+    if all(c is None for c in (col_first, col_last, col_login, col_email_pl, col_email_en)):
+        raise ValueError(
+            "Nieprawidłowy format pliku CSV. Brak rozpoznanych kolumn "
+            "(Imię, Nazwisko, Login, Adres email lub E-mail)."
+        )
+
+    participants: list[Participant] = []
+    for row in grid[header_idx + 1:]:
+        first = _csv_cell(row, col_first)
+        last = _csv_cell(row, col_last)
+        login = _csv_cell(row, col_login)
+        email = _csv_cell(row, col_email_pl) or _csv_cell(row, col_email_en)
+
+        name = f"{first} {last}".strip()
+        if not name:
+            name = login
+        if not name:
+            name = email
+        if not name:
+            continue
+
+        participants.append({
+            "imie_nazwisko": name,
+            "data_urodzenia": "",
+            "miejsce_urodzenia": "",
+            "placowka": "",
+            "email": email,
+            "locked": False,
+        })
+
+    participants.sort(key=_participant_sort_key)
+    return participants
 
 
 # ============================================================================
