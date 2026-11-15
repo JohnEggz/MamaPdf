@@ -67,7 +67,7 @@
       v(1cm),
       align(center)[
         zorganizowanym przez Niepubliczną Placówkę Doskonalenia Nauczycieli \
-        Best Practice "Edukacja" we współpracy z Urzędem Miasta Krakowa \ oraz Specjalistyczną Poradnią Psychologiczno-Pedagogiczną "Krakowskim Ośrodkiem Terapii"
+        Best Practice "Edukacja" we współpracy z Urzędem Miasta Krakowa \ oraz Specjalistyczną Poradnią Psychologiczno-Pedagogiczną "Krakowski Ośrodek Terapii"
       ],
       v(0.5cm),
     )
