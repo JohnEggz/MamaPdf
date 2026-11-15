@@ -8,7 +8,8 @@
 // (JSON, spreadsheets, ...) cannot use `~`.
 //
 // This module replaces the space after every word listed in `orphan-words`
-// with a non-breaking space, so the word stays glued to the next one.
+// with a non-breaking space, so the word stays glued to the next one. It also
+// lets you place non-breaking spaces manually with `~` (see below).
 //
 // It is fully self-contained: copy this file next to any Typst template and
 // import it. There are no external dependencies.
@@ -30,6 +31,21 @@
 //   #fix-orphans-str("Pani Anna brala udzial w webinarze.")
 //
 // ---------------------------------------------------------------------------
+// MANUAL NON-BREAKING SPACES
+// ---------------------------------------------------------------------------
+//
+// The automatic rule only covers the words in `orphan-words`. To force a
+// non-breaking space anywhere:
+//
+//   * In markup, use Typst's native `~`:      [Anna~Kowalska]
+//   * In data (JSON strings / spreadsheet cells), write `~`, which the same
+//     show rule converts:                    "Anna~Kowalska"
+//   * In code, use the helpers below:         #glue("Anna", "Kowalska")
+//
+// Note: a literal `~` used as "approximately" (e.g. "~5") is also converted.
+// Change `nb-marker` below if that collides with your data.
+//
+// ---------------------------------------------------------------------------
 // EXTENDING THE WORD LIST
 // ---------------------------------------------------------------------------
 //
@@ -39,6 +55,10 @@
 
 // Non-breaking space.
 #let nbsp = "\u{00a0}"
+
+// Manual marker that becomes a non-breaking space in data (JSON / cells).
+// In static markup Typst already treats `~` natively as a non-breaking space.
+#let nb-marker = "~"
 
 // Words that must never stand alone at the end of a line.
 #let orphan-words = (
@@ -66,15 +86,20 @@
   out
 }
 
-// Matches a listed word followed by a single space. The `\b` start anchor and
-// the required trailing space make this whole-word: "i" does not match "iść".
+// Matches either a listed word followed by a single space, or the manual
+// marker. The `\b` start anchor and the required trailing space make the word
+// alternative whole-word: "i" does not match "iść".
 #let orphan-regex = regex(
-  "\\b(?:" + orphan-words.map(_re-escape).join("|") + ") "
+  "(?:\\b(?:" + orphan-words.map(_re-escape).join("|") + ") |"
+  + _re-escape(nb-marker) + ")"
 )
 
-// Replaces the matched trailing space with a non-breaking space. Works both as
-// a `#show` transform (content) and as a `str.replace` callback (match).
-#let orphan-replacement = it => it.text.trim() + nbsp
+// Replaces a matched orphan word or the manual marker with a non-breaking
+// space. Works both as a `#show` transform (content) and as a `str.replace`
+// callback (match).
+#let orphan-replacement = it => {
+  if it.text == nb-marker { nbsp } else { it.text.trim() + nbsp }
+}
 
 // Apply orphan handling to a block of content only (does not leak outside).
 #let fix-orphans(body) = {
@@ -84,3 +109,11 @@
 
 // Apply orphan handling to a plain string.
 #let fix-orphans-str(s) = s.replace(orphan-regex, orphan-replacement)
+
+// --- manual helpers --------------------------------------------------------
+
+// Join variadic items with non-breaking spaces: #glue("Anna", "Kowalska")
+#let glue(..parts) = parts.pos().join(nbsp)
+
+// Join an array of items with non-breaking spaces: #nbsp-join(("Anna", "Kowalska"))
+#let nbsp-join(parts) = parts.join(nbsp)

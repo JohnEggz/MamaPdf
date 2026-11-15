@@ -75,6 +75,53 @@ def test_fix_orphans_str(tmp_path: Path) -> None:
     assert f"w{NBSP}domu" in html
 
 
+def test_manual_marker_in_string(tmp_path: Path) -> None:
+    html = _compile_html(
+        tmp_path,
+        "\n".join(
+            [
+                '#import "orphans.typ": fix-orphans-str',
+                '#text(fix-orphans-str("Anna~Kowalska oraz Jan"))',
+            ]
+        ),
+    )
+    assert f"Anna{NBSP}Kowalska" in html
+    # `~` is consumed; no tilde should remain.
+    assert "~" not in html
+
+
+def test_manual_marker_through_show_rule(tmp_path: Path) -> None:
+    html = _compile_html(
+        tmp_path,
+        "\n".join(
+            [
+                '#import "orphans.typ": orphan-regex, orphan-replacement',
+                "#show orphan-regex: orphan-replacement",
+                '#let name = "Anna~Kowalska"',
+                "#name spotkała się z Janem.",
+            ]
+        ),
+    )
+    assert f"Anna{NBSP}Kowalska" in html
+    assert "~" not in html
+
+
+def test_glue_and_nbsp_join_helpers(tmp_path: Path) -> None:
+    html = _compile_html(
+        tmp_path,
+        "\n".join(
+            [
+                '#import "orphans.typ": glue, nbsp-join',
+                '#text(glue("Anna", "Kowalska"))',
+                '#text(" i ")',
+                '#text(nbsp-join(("Jan", "Nowak")))',
+            ]
+        ),
+    )
+    assert f"Anna{NBSP}Kowalska" in html
+    assert f"Jan{NBSP}Nowak" in html
+
+
 def test_fix_orphans_is_scoped(tmp_path: Path) -> None:
     html = _compile_html(
         tmp_path,
