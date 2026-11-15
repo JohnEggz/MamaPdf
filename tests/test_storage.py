@@ -30,7 +30,7 @@ def test_sanitize_project_name_fallbacks() -> None:
 # --- build_project_base_name -------------------------------------------------
 
 def test_build_project_base_name_topic_and_date() -> None:
-    assert build_project_base_name("Kurs BHP", "15.01.2025") == "Kurs_BHP_2025-01-15"
+    assert build_project_base_name("Kurs BHP", "15.01.2025") == "2025-01-15_Kurs_BHP"
 
 
 def test_build_project_base_name_without_date() -> None:
@@ -43,12 +43,12 @@ def test_build_project_base_name_empty_fallback() -> None:
 
 
 def test_build_project_base_name_unparseable_date_kept() -> None:
-    assert build_project_base_name("Kurs", "wiosna") == "Kurs_wiosna"
+    assert build_project_base_name("Kurs", "wiosna") == "wiosna_Kurs"
 
 
 def test_build_project_base_name_truncates_but_keeps_date() -> None:
     base = build_project_base_name("A" * 200, "15.01.2025")
-    assert base.endswith("_2025-01-15")
+    assert base.startswith("2025-01-15_")
     assert len(base) <= storage._MAX_PROJECT_SLUG_LENGTH
 
 

@@ -55,20 +55,21 @@ def build_project_base_name(topic: str, date_str: str = "") -> str:
     """
     Builds a human-readable, collision-friendly base name for a project folder.
 
-    Format: ``<topic-slug>_<YYYY-MM-DD>`` where the date segment is omitted when
-    unavailable. The result is sanitized and truncated so it fits within path
-    limits once the workspace prefix and a numeric suffix are appended.
+    Format: ``<YYYY-MM-DD>_<topic-slug>`` where the date segment is omitted when
+    unavailable. The date is a prefix so folders sort chronologically. The result
+    is sanitized and truncated so it fits within path limits once the workspace
+    prefix and a numeric suffix are appended.
     """
     topic_slug = sanitize_project_name(topic) if (topic or "").strip() else ""
     date_slug = _normalize_date_segment(date_str)
 
-    # Reserve room for the date segment so it survives long topics.
+    # Reserve room for the date prefix so it survives long topics.
     if topic_slug:
         reserved = len(date_slug) + 1 if date_slug else 0
         max_topic = max(_MAX_PROJECT_SLUG_LENGTH - reserved, 1)
         topic_slug = topic_slug[:max_topic].rstrip(" ._")
 
-    base = "_".join(part for part in (topic_slug, date_slug) if part)
+    base = "_".join(part for part in (date_slug, topic_slug) if part)
     return base or "nowy_projekt"
 
 
