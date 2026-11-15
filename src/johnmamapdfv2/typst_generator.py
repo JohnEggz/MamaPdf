@@ -1,4 +1,6 @@
 import json
+import shutil
+import tempfile
 from pathlib import Path
 from typing import TypedDict
 import typst
@@ -83,31 +85,83 @@ def build_certificate_filename(index: int, total: int, participant: Participant)
     return f"{stem}.pdf"
 
 
+def _replace_directory(staging_dir: Path, target_dir: Path) -> None:
+    """
+    Replaces the contents of target_dir with staging_dir.
+
+    The existing target_dir is renamed aside first, so if promoting the new set
+    fails (for example, a certificate from the previous run is still open in a
+    PDF viewer) the previous set is restored rather than half-deleted.
+    """
+    backup_dir: Path | None = None
+    if target_dir.exists():
+        backup_dir = target_dir.with_name(f".{target_dir.name}.old")
+        if backup_dir.exists():
+            shutil.rmtree(backup_dir, ignore_errors=True)
+        target_dir.rename(backup_dir)
+
+    try:
+        staging_dir.rename(target_dir)
+    except OSError:
+        if backup_dir is not None and not target_dir.exists():
+            backup_dir.rename(target_dir)
+        raise
+    else:
+        if backup_dir is not None:
+            shutil.rmtree(backup_dir, ignore_errors=True)
+
+
 def compile_certificates_individual(doc: TrainingDocument, output_dir: Path) -> list[Path]:
-    """Compiles one certificate PDF per participant into output_dir."""
+    """
+    Compiles one certificate PDF per participant into output_dir.
+
+    The directory is fully app-owned and regenerated on every call: a complete
+    new set is compiled in a staging directory and then swapped in, so files
+    from previous runs (removed, reordered or renamed participants) can never
+    linger as stale duplicates.
+    """
     participants = doc.get("participants", [])
     total = len(participants)
+    output_dir = Path(output_dir)
+
     if total == 0:
+        # No participants: clear any stale certificates from a previous run.
+        if output_dir.exists():
+            shutil.rmtree(output_dir, ignore_errors=True)
         return []
 
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.parent.mkdir(parents=True, exist_ok=True)
     training_str = json.dumps(doc["training"], ensure_ascii=False)
 
+    # Compile everything into an isolated staging directory first.
+    staging_dir = Path(
+        tempfile.mkdtemp(prefix=f".{output_dir.name}.tmp-", dir=output_dir.parent)
+    )
+
     results: list[Path] = []
-    for index, participant in enumerate(participants, start=1):
-        out_pdf = output_dir / build_certificate_filename(index, total, participant)
-        _ = typst.compile(
-            input=CERTIFICATE_TEMPLATE,
-            output=out_pdf,
-            root=ASSETS_DIR,
-            font_paths=[ASSETS_DIR],
-            sys_inputs={
-                "training": training_str,
-                "participants": json.dumps([participant], ensure_ascii=False),
-            },
-        )
-        results.append(out_pdf)
-    return results
+    try:
+        for index, participant in enumerate(participants, start=1):
+            out_pdf = staging_dir / build_certificate_filename(index, total, participant)
+            _ = typst.compile(
+                input=CERTIFICATE_TEMPLATE,
+                output=out_pdf,
+                root=ASSETS_DIR,
+                font_paths=[ASSETS_DIR],
+                sys_inputs={
+                    "training": training_str,
+                    "participants": json.dumps([participant], ensure_ascii=False),
+                },
+            )
+            results.append(out_pdf)
+
+        # Promote the completed set into place.
+        _replace_directory(staging_dir, output_dir)
+    except Exception:
+        shutil.rmtree(staging_dir, ignore_errors=True)
+        raise
+
+    # Staging was moved into place; report the final paths.
+    return [output_dir / path.name for path in results]
 
 
 def compile_all_documents(doc: TrainingDocument, output_dir: Path) -> CompiledDocuments:

@@ -88,3 +88,29 @@ def test_build_certificate_filename_sanitizes_illegal_chars() -> None:
     filename = build_certificate_filename(1, 1, _participant("Jan/Kowalski", "a?b@x.com"))
     assert filename == "01_Jan_Kowalski_a_b@x.com.pdf"
     assert all(ch not in filename for ch in '<>:"/\\|?*')
+
+
+def test_regeneration_purges_stale_certificates(tmp_path: Path) -> None:
+    out_dir = tmp_path / "zaswiadczenia"
+    doc = load_training_document(SAMPLE_DATA_GEN)
+    assert len(compile_certificates_individual(doc, out_dir)) == 3
+
+    # Simulate removing a participant, then regenerating.
+    doc["participants"] = doc["participants"][:2]
+    paths = compile_certificates_individual(doc, out_dir)
+
+    assert sorted(p.name for p in paths) == ["01_John_Doe.pdf", "02_John_Doe.pdf"]
+    # No stale third certificate, and no temp/backup directories left behind.
+    assert sorted(p.name for p in out_dir.iterdir()) == ["01_John_Doe.pdf", "02_John_Doe.pdf"]
+    assert not [p for p in tmp_path.iterdir() if p.name.startswith(".zaswiadczenia")]
+
+
+def test_regeneration_with_no_participants_clears_directory(tmp_path: Path) -> None:
+    out_dir = tmp_path / "zaswiadczenia"
+    doc = load_training_document(SAMPLE_DATA_GEN)
+    compile_certificates_individual(doc, out_dir)
+    assert list(out_dir.iterdir())
+
+    doc["participants"] = []
+    assert compile_certificates_individual(doc, out_dir) == []
+    assert not out_dir.exists() or not list(out_dir.iterdir())
