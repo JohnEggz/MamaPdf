@@ -158,8 +158,17 @@ function renderStorageProjects(projects, activePath = null) {
       badges.push("PDF ✓");
     }
 
+    // Secondary line disambiguates projects that share the same topic.
+    const subtitleParts = [];
+    if (proj.training_date) subtitleParts.push(proj.training_date);
+    if (proj.course_number) subtitleParts.push(`nr ${proj.course_number}`);
+    if (proj.location) subtitleParts.push(proj.location);
+    const subtitle = subtitleParts.join(" · ");
+
+    const displayTitle = proj.title || proj.name;
     li.innerHTML = `
-      <div class="dir-item-title" title="${escapeHtml(proj.title || proj.name)}">${escapeHtml(proj.title || proj.name)}</div>
+      <div class="dir-item-title" title="${escapeHtml(displayTitle)}">${escapeHtml(displayTitle)}</div>
+      ${subtitle ? `<div class="dir-item-subtitle" title="${escapeHtml(subtitle)}">${escapeHtml(subtitle)}</div>` : ""}
       <div class="dir-item-meta">
         <span>${proj.modified || ""}</span>
         ${badges.length > 0 ? `<span class="dir-item-badge">${badges.join(" · ")}</span>` : ""}

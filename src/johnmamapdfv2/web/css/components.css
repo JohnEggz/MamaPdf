@@ -149,6 +149,11 @@ sidebar-pane {
   opacity: 0.9;
 }
 
+.dir-list-item.active .dir-item-subtitle {
+  color: var(--md-sys-color-on-primary-container);
+  opacity: 0.85;
+}
+
 .dir-list-item.active .dir-item-badge {
   background-color: var(--md-sys-color-primary);
   color: var(--md-sys-color-on-primary);
@@ -159,6 +164,15 @@ sidebar-pane {
   font-weight: 600;
   font-size: 0.85rem;
   color: var(--md-sys-color-on-surface);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dir-item-subtitle {
+  font-size: 0.72rem;
+  color: var(--md-sys-color-on-surface-variant);
+  margin-top: 0.1rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

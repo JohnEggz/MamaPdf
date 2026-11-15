@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Generator Zaświadczeń
+GenericName=Generator zaświadczeń
+Comment=Certificate & Attendance PDF generator
+Exec=/workspace/MamaPdf/.venv/bin/python3 -m johnmamapdfv2.app
+Path=/workspace/MamaPdf
+Env=PYTHONPATH=/workspace/MamaPdf/src
+Icon=/workspace/MamaPdf/src/johnmamapdfv2/assets/logo.png
+Terminal=false
+Categories=Office;Utility;
+Keywords=PDF;certificate;attendance;zaświadczenie;obecność;MamaPdf;
+StartupNotify=true

@@ -30,24 +30,70 @@ def sanitize_project_name(name: str) -> str:
     return cleaned or "nowy_projekt"
 
 
+# Keeps the folder name (plus the workspace prefix and a "_N" suffix) within
+# typical Windows MAX_PATH limits.
+_MAX_PROJECT_SLUG_LENGTH = 60
+
+
+def _normalize_date_segment(date_str: str) -> str:
+    """Normalizes a training date into a sortable ``YYYY-MM-DD`` folder segment."""
+    text = (date_str or "").strip()
+    if not text:
+        return ""
+
+    for fmt in ("%d.%m.%Y", "%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(text, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+
+    # Unknown format: fall back to a sanitized, filesystem-safe segment.
+    return sanitize_filename_component(text)
+
+
+def build_project_base_name(topic: str, date_str: str = "") -> str:
+    """
+    Builds a human-readable, collision-friendly base name for a project folder.
+
+    Format: ``<topic-slug>_<YYYY-MM-DD>`` where the date segment is omitted when
+    unavailable. The result is sanitized and truncated so it fits within path
+    limits once the workspace prefix and a numeric suffix are appended.
+    """
+    topic_slug = sanitize_project_name(topic) if (topic or "").strip() else ""
+    date_slug = _normalize_date_segment(date_str)
+
+    # Reserve room for the date segment so it survives long topics.
+    if topic_slug:
+        reserved = len(date_slug) + 1 if date_slug else 0
+        max_topic = max(_MAX_PROJECT_SLUG_LENGTH - reserved, 1)
+        topic_slug = topic_slug[:max_topic].rstrip(" ._")
+
+    base = "_".join(part for part in (topic_slug, date_slug) if part)
+    return base or "nowy_projekt"
+
+
 def create_project_directory(base_name: str) -> Path:
     """
     Creates a new project directory in the user workspace.
-    Guarantees a unique directory for each new ODS import.
+
+    Guarantees a unique directory for each new import by appending a numeric
+    suffix (``_2``, ``_3``, ...) when the desired name is already taken.
     """
     workspace = get_workspace_dir()
     clean_base = sanitize_project_name(base_name)
-    target_dir = workspace / clean_base
 
+    target_dir = workspace / clean_base
     if not target_dir.exists():
         target_dir.mkdir(parents=True, exist_ok=True)
         return target_dir
 
-    # If it exists, append timestamp to make it unique
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    target_dir = workspace / f"{clean_base}_{timestamp}"
-    target_dir.mkdir(parents=True, exist_ok=True)
-    return target_dir
+    counter = 2
+    while True:
+        candidate = workspace / f"{clean_base}_{counter}"
+        if not candidate.exists():
+            candidate.mkdir(parents=True, exist_ok=True)
+            return candidate
+        counter += 1
 
 
 def list_workspace_projects() -> list[dict[str, Any]]:
@@ -73,18 +119,29 @@ def list_workspace_projects() -> list[dict[str, Any]]:
                     doc_file = json_files[0]
 
                 sub_count = 0
-                title = item.name
+                topic = ""
+                training_date = ""
+                course_number = ""
+                location = ""
 
-                if doc_file and doc_file.exists():
+                has_doc = bool(doc_file and doc_file.exists())
+                if has_doc:
                     try:
                         data = json.loads(doc_file.read_text(encoding="utf-8"))
                         if isinstance(data, dict):
                             t = data.get("training", {})
-                            if isinstance(t, dict) and t.get("nazwa_szkolenia"):
-                                title = str(t["nazwa_szkolenia"])
+                            if isinstance(t, dict):
+                                topic = str(t.get("nazwa_szkolenia") or "").strip()
+                                training_date = str(t.get("data_szkolenia") or "").strip()
+                                course_number = str(t.get("numer_szkolenia") or "").strip()
+                                location = str(t.get("miejsce_szkolenia") or "").strip()
                             sub_count = len(data.get("participants", []))
                     except Exception:
                         pass
+
+                # Prefer the human topic; fall back to a friendly placeholder
+                # for saved-but-untitled projects, or the folder name otherwise.
+                title = topic or ("Szkolenie bez nazwy" if has_doc else item.name)
 
                 has_cert = (item / "certyfikaty.pdf").exists()
                 has_attendance = (item / "lista_obecnosci.pdf").exists()
@@ -92,6 +149,9 @@ def list_workspace_projects() -> list[dict[str, Any]]:
                 projects.append({
                     "name": item.name,
                     "title": title,
+                    "training_date": training_date,
+                    "course_number": course_number,
+                    "location": location,
                     "path": str(item),
                     "json_file": str(doc_file) if doc_file.exists() else None,
                     "pdf_count": len(pdf_files),

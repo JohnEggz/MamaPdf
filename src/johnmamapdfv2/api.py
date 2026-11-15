@@ -10,7 +10,11 @@ from johnmamapdfv2.json_io import load_training_document, save_training_document
 from johnmamapdfv2.paths import get_workspace_dir
 from johnmamapdfv2.spreadsheet_parser import load_participants, process_survey_file
 from johnmamapdfv2.state import create_empty_document, state
-from johnmamapdfv2.storage import create_project_directory, list_workspace_projects
+from johnmamapdfv2.storage import (
+    build_project_base_name,
+    create_project_directory,
+    list_workspace_projects,
+)
 from johnmamapdfv2.types import Participant, TrainingDocument
 from johnmamapdfv2.typst_generator import compile_all_documents
 
@@ -59,13 +63,18 @@ def api_pick_spreadsheet() -> dict[str, Any]:
     try:
         participants = load_participants(file_path)
 
-        # Create a new project directory for this import
-        project_dir = create_project_directory(file_path.stem)
-
         # Initialize new document with participants and course title preset to file name
         new_doc = create_empty_document()
         new_doc["training"]["nazwa_szkolenia"] = file_path.stem.replace("_", " ")
         new_doc["participants"] = participants
+
+        # Create a new project directory from the topic + training date.
+        project_dir = create_project_directory(
+            build_project_base_name(
+                new_doc["training"]["nazwa_szkolenia"],
+                new_doc["training"]["data_szkolenia"],
+            )
+        )
 
         # Activate project in state and save
         state.set_document(new_doc, source_path=str(file_path), project_dir=project_dir)
@@ -217,7 +226,9 @@ def api_generate_pdfs(
     # Ensure there is an active project directory
     if state.active_project_dir is None or not state.active_project_dir.exists():
         title = doc["training"].get("nazwa_szkolenia") or "szkolenie"
-        project_dir = create_project_directory(title)
+        project_dir = create_project_directory(
+            build_project_base_name(title, doc["training"].get("data_szkolenia", ""))
+        )
         state.set_active_project_dir(project_dir)
 
     target_dir = state.active_project_dir

@@ -2,6 +2,10 @@
 #let tr = json(bytes(data.training))
 #let participants = json(bytes(data.participants))
 
+// Keep short/orphan words (a, i, w, z, ...) glued to the next word.
+#import "orphans.typ": orphan-regex, orphan-replacement
+#show orphan-regex: orphan-replacement
+
 #set page(
   paper: "a4",
   header: context {
