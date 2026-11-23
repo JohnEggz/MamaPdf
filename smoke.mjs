@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { $typst, TypstSnippet } from "@myriaddreamin/typst.ts/contrib/snippet";
+import { SMOKE_PARTICIPANTS, SMOKE_SURVEY, SMOKE_TRAINING } from "./test/fixtures.mjs";
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 const asset = (f) => path.join(dir, "public/assets", f);
@@ -32,19 +33,13 @@ for (const f of [
   await $typst.mapShadow("/" + f, fs.readFileSync(asset(f)));
 }
 
-const doc = JSON.parse(fs.readFileSync(path.join(dir, "test/fixtures/data_gen.json"), "utf8"));
-const training = JSON.stringify(doc.training);
-const participant = JSON.stringify(doc.participants[0]);
-const survey = JSON.stringify(
-  JSON.parse(fs.readFileSync(path.join(dir, "test/fixtures/survey_gen.json"), "utf8")),
-);
+const training = JSON.stringify(SMOKE_TRAINING);
+const participant = JSON.stringify(SMOKE_PARTICIPANTS[0]);
+const survey = JSON.stringify(SMOKE_SURVEY);
 const evaluationTraining = JSON.stringify({
-  ...doc.training,
-  nazwa_szkolenia: "Praca z uczniem z doświadczeniem migracji",
+  ...SMOKE_TRAINING,
+  nazwa_szkolenia: "Szkolenie Przykładowe z Ewaluacją",
   numer_szkolenia: "SZRP/25/8/UM",
-  data_szkolenia: "29.08.2025",
-  miejsce_szkolenia: "Zespół Szkół Gastronomicznych Nr 2 w Krakowie",
-  prowadzacy: "Małgorzata Cużytek",
 });
 
 // Active certificate template: front + program back, numbered per participant.
@@ -71,7 +66,7 @@ const list = await $typst.pdf({
   root: "/",
   inputs: {
     training,
-    participants: JSON.stringify(doc.participants),
+    participants: JSON.stringify(SMOKE_PARTICIPANTS),
   },
 });
 if (!list) throw new Error("dziennik.typ returned no pdf");

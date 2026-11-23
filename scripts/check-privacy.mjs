@@ -162,7 +162,19 @@ function inspect(file, options) {
 }
 
 if (existsSync(path.join(root, "public/fixtures"))) {
-  violations.push("public/fixtures exists — fixtures must live in test/fixtures");
+  violations.push("public/fixtures exists — test inputs must be generated, never published");
+}
+
+// The test directory may hold code and docs only; data files are generated at
+// run time into test/.tmp (gitignored) and never committed.
+const testDir = path.join(root, "test");
+if (existsSync(testDir)) {
+  for (const entry of readdirSync(testDir)) {
+    if (entry.startsWith(".")) continue;
+    if (!/\.(mjs|md)$/i.test(entry)) {
+      violations.push(`test/${entry} looks like a data file — test inputs must be generated`);
+    }
+  }
 }
 
 if (existsSync(path.join(root, "dist"))) {
@@ -178,7 +190,7 @@ if (existsSync(path.join(root, "dist"))) {
 for (const file of walk(root)) {
   const where = relative(file);
   inspect(file, {
-    allowPlaceholders: where.startsWith("test/fixtures/"),
+    allowPlaceholders: where.startsWith("test/"),
     numericRules: true,
   });
 }

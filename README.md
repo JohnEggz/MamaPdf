@@ -62,10 +62,11 @@ npm run e2e:base
 
 ## Prywatność
 
-- W repozytorium **nie ma** danych uczestników: arkusze testowe w
-  `test/fixtures/` zawierają wyłącznie dane wymyślone (adresy `@example.*`).
-- `test/fixtures/` **nigdy** nie może trafić do `public/` — wszystko z `public/`
-  jest kopiowane do zbudowanej strony.
+- W repozytorium **nie ma** żadnych arkuszy ani danych uczestników. Pliki
+  testowe są generowane przez `test/fixtures.mjs` do `test/.tmp/` (poza gitem)
+  w trakcie testów i usuwane po ich zakończeniu; w repo jest tylko kod.
+- Arkusze **nigdy** nie mogą trafić do `public/` — wszystko z `public/` jest
+  kopiowane do zbudowanej strony.
 - `npm run check:privacy` (uruchamiany w CI i przed wdrożeniem) blokuje m.in.
   adresy e-mail inne niż `@example.*`, numery PESEL, numery telefonów oraz
   nazwiska z pierwotnego eksportu Zoom-a.
@@ -83,7 +84,7 @@ src/
   pipeline/               render Typst, nazwy plików, typy planu
   shell/                  IndexedDB, drzewo wyników, ZIP
 public/assets/            szablony .typ, fonty, obrazy (kopiowane na stronę)
-test/fixtures/            arkusze testowe (dane wymyślone)
+test/fixtures.mjs         generator wymyślonych danych testowych do test/.tmp/
 scripts/check-privacy.mjs kontrola danych osobowych
 ```
 

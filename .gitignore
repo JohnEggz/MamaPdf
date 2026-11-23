@@ -8,3 +8,6 @@ e2e*.png
 certpage-*.png
 page-*.png
 smoke-*.pdf
+
+# Generated test inputs (never committed)
+test/.tmp/

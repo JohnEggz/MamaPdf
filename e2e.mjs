@@ -4,10 +4,13 @@ import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { PDFDocument } from "pdf-lib";
 import puppeteer from "puppeteer-core";
+import { cleanFixtures, writeFixtures } from "./test/fixtures.mjs";
 
 const root = import.meta.dirname;
 const URL = process.env.E2E_URL ?? "http://localhost:4173/";
-const FIXTURES = path.join(root, "test/fixtures");
+// Inputs are generated at run time; the repository holds no spreadsheets.
+const fixtures = writeFixtures();
+process.on("exit", () => cleanFixtures());
 
 const server = spawn("npx", ["vite", "preview", "--port", "4173", "--strictPort"], {
   cwd: root,
@@ -135,7 +138,7 @@ try {
   console.log("PROJECT CREATED:", await page.$eval('[data-testid="active-project"]', (el) => el.textContent?.trim()));
 
   // 2. Load participants.
-  await loadDataset(page, "uczestnicy", path.join(FIXTURES, "ankieta.ods"));
+  await loadDataset(page, "uczestnicy", fixtures.participants);
   await page.waitForFunction(
     () => document.querySelectorAll('[data-testid="participant-row"]').length === 3,
     { timeout: 30_000 },
@@ -146,7 +149,7 @@ try {
   );
 
   // 3. Load survey: the center pane shows processed data, not raw rows.
-  await loadDataset(page, "ankieta", path.join(FIXTURES, "ankieta_temp.xlsx"));
+  await loadDataset(page, "ankieta", fixtures.survey);
   await page.waitForSelector('[data-testid="survey-editor"]', { timeout: 30_000 });
   await page.waitForFunction(
     () => document.querySelector('[data-testid="dataset-ankieta"] .leaf-status')?.textContent?.includes("odp."),
@@ -305,7 +308,7 @@ try {
       size: bytes.byteLength,
       magic: String.fromCharCode(...bytes.subarray(0, 2)),
       hasMerged: text.includes("zaswiadczenia.pdf"),
-      hasIndividual: text.includes("pojedyncze/01_John_Doe.pdf"),
+      hasIndividual: text.includes("pojedyncze/01_"),
       hasList: text.includes("dziennik.pdf"),
       hasEvaluation: text.includes("ewaluacja.pdf"),
       hasReferences: text.includes("referencje.pdf"),
@@ -456,7 +459,7 @@ try {
   await page.click('[data-testid="flow-webinar-kot"]');
   await page.waitForSelector('[data-testid="dataset-uczestnicy"]');
 
-  await loadDataset(page, "uczestnicy", path.join(FIXTURES, "webinar-kot.csv"));
+  await loadDataset(page, "uczestnicy", fixtures.webinar);
   await page.waitForFunction(
     () => document.querySelectorAll('[data-testid="participant-row"]').length === 34,
     { timeout: 30_000 },
