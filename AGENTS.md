@@ -48,6 +48,13 @@ an explicit `PUBLIC_LETTERHEAD` allowlist (the trainer name and company phone
 number printed on documents). Add to the allowlist only for genuine letterhead
 content.
 
+Public letterhead is a deliberate, accepted decision: `public/assets/signature_mama.png`,
+`public/assets/stamp.png`, the "Opiekun" name in `dziennik.typ` and the company
+phone in `referencje.typ` stay in the repository **and** are served by the site.
+They are required to render the documents, so do not delete them as a "privacy
+cleanup" — removing them from git does not stop the deployed site from serving
+them, and deleting them breaks generation. Only participant data is off-limits.
+
 ## Architecture in one screen
 
 ```
