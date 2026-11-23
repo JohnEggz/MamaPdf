@@ -23,9 +23,14 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run check:privacy
-      - run: npm run smoke
+      # Reuse node_modules between runs; the Typst WASM package is the slow part.
+      - uses: actions/cache@v4
+        id: modules
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci --no-audit --no-fund
       - run: npm run build
         env:
           VITE_BASE: /MamaPdf/

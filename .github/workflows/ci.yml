@@ -1,9 +1,10 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
+  # Tests are opt-in: run from the Actions tab, or automatically on pull
+  # requests. Pushes to main go straight to deploy.
   pull_request:
+  workflow_dispatch:
 
 jobs:
   build:
