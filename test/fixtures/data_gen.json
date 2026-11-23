@@ -1,0 +1,38 @@
+{
+    "training": {
+        "nazwa_szkolenia": "Nowe Szkolenie",
+        "numer_szkolenia": "NR/202X",
+        "data_szkolenia": "",
+        "miejsce_szkolenia": "",
+        "prowadzacy": "",
+        "czas_trwania": "8 godz",
+        "czas_trwania_od_do": "09:00 - 16:00",
+        "data_wystawienia": "",
+        "tematyka": "1. Wprowadzenie"
+    },
+    "participants": [
+        {
+            "imie_nazwisko": "John Doe",
+            "data_urodzenia": "30.09.1974",
+            "miejsce_urodzenia": "Zelenodolsk",
+            "placowka": "",
+            "locked": false
+        },
+        {
+            "imie_nazwisko": "John Doe",
+            "data_urodzenia": "30.09.1974",
+            "miejsce_urodzenia": "Zelenodolsk  Ukraina",
+            "placowka": "",
+            "locked": false
+        },
+        {
+            "imie_nazwisko": "John Doe",
+            "data_urodzenia": "01.05.1986",
+            "miejsce_urodzenia": "Ukraina, Novopavlivka",
+            "placowka": "",
+            "locked": false
+        }
+    ],
+    "last_gen_training": null,
+    "last_gen_participants": null
+}

@@ -1,0 +1,39 @@
+{
+  "name": "mamapdf",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Generowanie zaświadczeń, dzienników i ankiet szkoleniowych w przeglądarce.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "smoke": "node smoke.mjs",
+    "check:privacy": "node scripts/check-privacy.mjs",
+    "bench": "node bench.mjs",
+    "e2e": "npm run build && node e2e.mjs",
+    "e2e:base": "VITE_BASE=/MamaPdf/ npm run build && VITE_BASE=/MamaPdf/ E2E_URL=http://localhost:4173/MamaPdf/ node e2e.mjs"
+  },
+  "dependencies": {
+    "@myriaddreamin/typst-ts-renderer": "^0.7.0",
+    "@myriaddreamin/typst-ts-web-compiler": "^0.7.0",
+    "@myriaddreamin/typst.ts": "^0.7.0",
+    "fflate": "^0.8.3",
+    "idb": "^8.0.4",
+    "pdf-lib": "^1.17.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "puppeteer-core": "^25.18.1",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.8"
+  }
+}

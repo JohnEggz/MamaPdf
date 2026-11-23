@@ -1,0 +1,157 @@
+{
+  "responseCount": 32,
+  "ratings": [
+    {
+      "key": "tematyka",
+      "header": "Tematyka szkolenia dostosowana została do zgłoszonych potrzeb (1 - najniższa ocena, 5 najwyższa ocena):",
+      "label": "Tematyka dostosowana do potrzeb",
+      "average": 4.4,
+      "responses": 32
+    },
+    {
+      "key": "czas_trwania",
+      "header": "Czas trwania zajęć dostosowany był do potrzeb uczestników (1 - najniższa ocena, 5 najwyższa ocena):",
+      "label": "Czas trwania dostosowany do potrzeb",
+      "average": 4.6,
+      "responses": 32
+    },
+    {
+      "key": "przygotowanie",
+      "header": "Na ile ocenia Pan/Pani przygotowanie merytoryczne trenera / edukatora (1 - najniższa ocena, 5 najwyższa ocena):",
+      "label": "Przygotowanie merytoryczne trenera",
+      "average": 4.7,
+      "responses": 32
+    },
+    {
+      "key": "cele",
+      "header": "Na ile trener zrealizował cele szkolenia (1 - najniższa ocena, 5 najwyższa ocena):",
+      "label": "Realizacja celów szkolenia",
+      "average": 4.6,
+      "responses": 32
+    },
+    {
+      "key": "prowadzenie",
+      "header": "Jak ocenia Pan / Pani sposób prowadzenia zajęć przez trenera / edukatora (1 - najniższa ocena, 5 najwyższa ocena):",
+      "label": "Sposób prowadzenia zajęć",
+      "average": 4.7,
+      "responses": 32
+    },
+    {
+      "key": "potrzeby",
+      "header": "Na ile trener / edukator odpowiadał na potrzeby zgłaszane przez uczestników   (1 - najniższa ocena, 5 najwyższa ocena):",
+      "label": "Odpowiadanie na potrzeby uczestników",
+      "average": 4.6,
+      "responses": 32
+    }
+  ],
+  "recommendation": [
+    {
+      "key": "tak",
+      "label": "Tak",
+      "count": 23
+    },
+    {
+      "key": "nie_wiem",
+      "label": "Nie wiem",
+      "count": 7
+    },
+    {
+      "key": "nie",
+      "label": "Nie",
+      "count": 2
+    }
+  ],
+  "interests": [
+    {
+      "key": "spe_autyzm",
+      "label": "Wsparcie dziecka o SPE: spektrum autyzmu, afazja, niepełnosprawność intelektualna",
+      "count": 5
+    },
+    {
+      "key": "spe_dysleksja",
+      "label": "Wsparcie dziecka o SPE: dysleksja, dysgrafia, dysortografia, dyskalkulia",
+      "count": 3
+    },
+    {
+      "key": "spe_emocje",
+      "label": "Wsparcie dziecka z problemami emocjonalnymi: depresja, zaburzenia lękowe, doświadczenia postraumatyczne, uzależnienia od urządzeń ekranowych",
+      "count": 7
+    },
+    {
+      "key": "spe_zachowanie",
+      "label": "Wsparcie dziecka z trudnościami w zachowaniu: bunt, agresja, przemoc rówieśnicza",
+      "count": 11
+    },
+    {
+      "key": "zagrozenia",
+      "label": "Zagrożenia dla rozwoju współczesnego dziecka/ nastolatka: używki, uzależnienia behawioralne",
+      "count": 8
+    },
+    {
+      "key": "pamiec",
+      "label": "Wspomaganie pamięci i koncentracji uczniów",
+      "count": 9
+    },
+    {
+      "key": "tik",
+      "label": "TIK w pracy nauczyciela",
+      "count": 7
+    },
+    {
+      "key": "bezpieczenstwo",
+      "label": "Bezpieczeństwo w sieci uczniów i nauczycieli",
+      "count": 11
+    },
+    {
+      "key": "prawo",
+      "label": "Prawo oświatowe",
+      "count": 13
+    },
+    {
+      "key": "stres",
+      "label": "Stres w pracy, wzmacnianie odporności psychicznej i dobrostanu nauczycieli",
+      "count": 10
+    },
+    {
+      "key": "kultura",
+      "label": "Praca z klasą zróżnicowaną kulturowo (uczeń z zagranicy z zespole klasowym)",
+      "count": 4
+    },
+    {
+      "key": "zroznicowanie",
+      "label": "Praca z klasą zróżnicowaną edukacyjnie",
+      "count": 4
+    },
+    {
+      "key": "trudna",
+      "label": "Praca z klasą \"trudną\" (konflikty, kłopoty z dyscypliną, brak aktywności, słaba motywacja)",
+      "count": 12
+    },
+    {
+      "key": "wychowawcze",
+      "label": "Ciekawe lekcje wychowawcze",
+      "count": 12
+    },
+    {
+      "key": "rodzice",
+      "label": "Współpraca z rodzicami (w tym z \"wymagającym\" rodzicem)",
+      "count": 7
+    },
+    {
+      "key": "inne",
+      "label": "Inne / nieprzypisane",
+      "count": 0
+    }
+  ],
+  "comments": [
+    "Kolejne szkolenie bez konkretów i jak oczywiście zwykle piramida maslowa. My naprawdę jako nauczyciel nie jesteśmy ignorantami. Proszę szanować nasz aczas. Konkrety!",
+    "brak",
+    "brak",
+    "BRAK",
+    "Brak uwag",
+    "Brakło konkretnych przykładów dobrze napisanych dostosowań. Dalej nie wiem, czy właściwie je wypełniam.",
+    "Chciałabym, żeby każda z ustaw zawarta w prezentacji została przeczytana i omówiona.",
+    "ok"
+  ],
+  "extraColumns": []
+}

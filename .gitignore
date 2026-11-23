@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.private/
+
+# Generated artifacts
+*.pdf
+e2e*.png
+certpage-*.png
+page-*.png
+smoke-*.pdf

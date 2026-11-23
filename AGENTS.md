@@ -1,0 +1,438 @@
+# AGENTS.md — MamaPdf
+
+Instructions for AI agents working in this repository.
+
+## What this is
+
+A client-side SPA (Vite + React + TypeScript) that turns spreadsheets into PDFs
+using Typst compiled to WebAssembly. It is deployed as a static site on GitHub
+Pages at `https://johneggz.github.io/MamaPdf/`.
+
+The legacy Python/eel application lives in the archived repository
+`JohnEggz/MamaPdf` (Python sources, PyInstaller launcher, old `tests/`). It is
+**not** part of this codebase — do not port build tooling from it. Use it only
+as a reference for parsing rules and domain logic.
+
+## Commands
+
+Run from the repository root (Node.js 22+):
+
+```bash
+npm ci
+npm run dev            # interactive app on Vite
+npm run build          # tsc --noEmit + vite build
+npm run e2e            # build + headless Chromium end-to-end test
+npm run e2e:base       # same, but served under /MamaPdf/ like production
+npm run smoke          # compile every Typst template in Node (no browser)
+npm run check:privacy  # block participant data in the repo / dist
+npm run bench          # batch-vs-single Typst benchmark
+```
+
+`npm run e2e` uses `vite preview` on port `4173` and finds Chromium via
+`CHROME_PATH`, `/usr/bin/chromium`, or `/usr/bin/google-chrome`.
+
+## What must never be committed
+
+Everything here is public: this repository is public and the built site is
+public.
+
+- No participant data. Spreadsheets under `test/fixtures/` use invented names
+  and `@example.*` addresses only.
+- **Never** put fixtures or sample spreadsheets in `public/` — `public/` is
+  copied verbatim into `dist/` and served. Fixtures live in `test/fixtures/`.
+- No generated PDFs, screenshots, or `dist/` output (all gitignored).
+- `npm run check:privacy` enforces the above; run it before every push.
+
+`scripts/check-privacy.mjs` keeps hashes of the real names it must reject, plus
+an explicit `PUBLIC_LETTERHEAD` allowlist (the trainer name and company phone
+number printed on documents). Add to the allowlist only for genuine letterhead
+content.
+
+## Architecture in one screen
+
+```
+src/
+  App.tsx                 3-pane shell: tree, context editor, templates/results
+  main.tsx                React entry
+  style.css               all styling (no CSS framework)
+  types.ts                shared Participant / TrainingMeta types
+  pipeline/
+    types.ts              RenderPlan, RenderContext, TemplateDef
+    render.ts             Typst WASM init, executePlan, PDF concat
+    filenames.ts          sanitize + certificate filename builder
+  shell/
+    projectStore.ts       IndexedDB: Project CRUD, JSON only
+    results.ts            TemplateResult -> TreeNode tree
+    zip.ts                TreeNode -> zip (preserves folders)
+  flows/
+    index.ts              registered flows (home-screen list)
+    types.ts              Flow, DatasetDef, MetaField, editor props
+    wydarzenie/           flow: participants + survey, 4 templates
+    webinar-kot/          flow: Zoom CSV, 1 template
+public/
+  assets/                 Typst templates, fonts, images, .nojekyll
+test/fixtures/            test spreadsheets (synthetic data only)
+scripts/check-privacy.mjs privacy guard for CI
+```
+
+**Core rule:** the shell is generic, every flow is concrete. `App.tsx` must
+never contain certificate/survey/flow-specific logic. All domain behaviour
+lives in `src/flows/<flow>/`.
+
+Pipeline:
+
+```
+Source file
+  -> Dataset.load(file)          (adapter: parse + normalize)
+  -> Dataset value (JSON)
+  -> Template.prepare(ctx)       (flow-specific shaping)
+  -> RenderPlan (single | batch)
+  -> Typst WASM compile per item
+  -> Artifacts (+ merged PDF for batches)
+  -> result tree + zip
+```
+
+## Hosting and paths
+
+- Deployed on GitHub Pages, project subpath `/MamaPdf/`.
+- `vite.config.ts` reads `VITE_BASE` (`/MamaPdf/` in the deploy workflow, `/`
+  locally). The workflow `deploy.yml` is the only place that sets it.
+- **Never hardcode an absolute `/assets/...` URL in `src/`.** Fetch page assets
+  through `` `${import.meta.env.BASE_URL}assets/…` `` (see `render.ts`), or the
+  app breaks under the subpath. Typst-internal asset names stay shadowed at `/`.
+- `index.html` carries `<meta name="robots" content="noindex, nofollow">`.
+  Keep it: the site must not be linked or indexed publicly.
+- `public/.nojekyll` keeps GitHub Pages from processing the artifact with
+  Jekyll if branch deployment is ever enabled.
+
+## Core contracts
+
+### Flow
+
+```ts
+interface Flow {
+  id: string;
+  name: string;
+  description?: string;
+  metaFields: MetaField[];
+  datasets: DatasetDef<any>[];   // heterogeneous by design
+  templates: TemplateDef[];
+}
+```
+
+### MetaField
+
+```ts
+interface MetaField {
+  key: string;
+  label: string;
+  type: "text" | "textarea" | "date" | "number" | "select";
+  options?: string[];
+  placeholder?: string;
+}
+```
+
+There is **no `required` flag**. A field is required because a selected
+template lists it in `template.meta`. The root editor shows exactly the union
+of `meta` keys of currently selected templates, all marked required.
+
+### DatasetDef
+
+```ts
+interface DatasetDef<T> {
+  id: string;
+  label: string;
+  accept: string;                       // e.g. ".csv,.xlsx,.ods"
+  load(file: File): Promise<T>;
+  Editor: ComponentType<DatasetEditorProps<T>>;
+  readOnly?: boolean;
+  summarize?(value: T): string;         // e.g. "34 os."
+}
+```
+
+Datasets are flow-local. Do not introduce a universal dataset schema.
+
+### TemplateDef / RenderPlan
+
+```ts
+interface TemplateDef {
+  id: string;
+  label: string;
+  inputs: string[];       // dataset ids it reads
+  meta: string[];         // meta keys it requires (all mandatory)
+  typFile: string;        // shadow path, e.g. "/zaswiadczenie.typ"
+  prepare(ctx: RenderContext): RenderPlan;
+}
+
+interface RenderContext {
+  datasets: Record<string, unknown>;
+  meta: Record<string, unknown>;
+}
+
+type RenderPlan =
+  | { kind: "single"; filename: string; inputs: Record<string, string> }
+  | {
+      kind: "batch";
+      items: { filename: string; inputs: Record<string, string> }[];
+      concatFilename?: string;   // merged PDF name for >1 items
+    };
+```
+
+`ctx.meta` always contains **every key in `flow.metaFields`**, with `""` for
+missing values. `template.meta` controls readiness only.
+
+### Project (persisted)
+
+```ts
+interface Project {
+  id: string;
+  flowId: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  datasets: Record<string, unknown>;   // only imported datasets get a key
+  meta: Record<string, unknown>;
+  selectedTemplates: string[];
+}
+```
+
+Persistence is IndexedDB `mamapdf` (v2), **JSON only**. Never persist source
+files, parsed raw rows beyond the dataset value, or generated PDFs. Because the
+origin is fixed by the deployed URL, changing the site URL would orphan every
+user's projects — treat `https://johneggz.github.io/MamaPdf/` as permanent.
+
+### Survey (ankieta) data
+
+The `ankieta` dataset stores only the **processed** survey summary, never raw
+rows or the original grid. `loadSurvey` reads the first sheet, and
+`summarizeSurvey` ports the legacy `spreadsheet_parser.py` rules:
+
+- 6 rating questions -> mean rounded to 1 decimal + valid-answer count
+- `Tak` / `Nie wiem` / `Nie` recommendation counts
+- 15 fixed future-training topics + `inne` (substring match)
+- comments list
+- generic value->count tables for unknown non-timestamp columns
+
+`SurveyData` and its aggregation live in `src/flows/wydarzenie/survey.ts`; the
+editable center-pane view is `AnkietaEditor.tsx`. Survey edits are persisted as
+JSON like any other dataset. Re-importing the spreadsheet replaces the
+processed summary.
+
+`overallSurveyAverage` returns the weighted mean of the rating averages; the
+**Referencje** template uses it for the "średnia ocena z ewaluacji" sentence.
+
+User-facing names differ from the stable internal IDs: dataset `ankieta` is
+labelled **Ewaluacja**, template `lista_obecnosci` is labelled **Dziennik**, and
+template `ankieta_ewaluacyjna` is labelled **Ewaluacja**. Keep the IDs stable so
+existing projects keep their dataset/selection.
+
+## Typst template rules
+
+Every `.typ` file renders **exactly one PDF**. Repetition over people is
+`prepare`'s job, never the template's.
+
+- Top-level function calls need `#` (markup mode): `#place(...)`, `#move(...)`,
+  `#align(...)`, `#table(...)`. Only code inside `#let`/`#for`/`#show` blocks
+  omits it.
+- Inputs arrive as strings: `#let tr = json(bytes(sys.inputs.training))`.
+- Single-item templates read `sys.inputs.participant`; single-document lists
+  (e.g. attendance) read `sys.inputs.participants`.
+- Polish typography: import and apply orphans:
+  ```typst
+  #import "orphans.typ": orphan-regex, orphan-replacement
+  #show orphan-regex: orphan-replacement
+  ```
+- Assets are shadowed at `/`. Reference `image("logo.png")`, not `/assets/...`.
+  Any referenced file **must be added to `ASSETS` in `src/pipeline/render.ts`**.
+- Register fonts through `initRenderer`; do not rely on remote fonts.
+- Do not use remote Typst packages unless you also wire a package registry.
+- Text baked into a template is public and printed on every PDF (for example
+  the "Opiekun" name in `dziennik.typ`). Do not add personal data that is not
+  already public letterhead.
+
+Current templates:
+
+| Template | Typst file | Kind |
+|---|---|---|
+| `zaswiadczenia` (flow `wydarzenie`) | `zaswiadczenie.typ` | batch, 2 pages/item |
+| `lista_obecnosci` (flow `wydarzenie`, label **Dziennik**) | `dziennik.typ` | single, 5 pages |
+| `ankieta_ewaluacyjna` (flow `wydarzenie`, label **Ewaluacja**) | `ankieta_ewaluacyjna.typ` | single, 2 pages |
+| `referencje` (flow `wydarzenie`, label **Referencje**) | `referencje.typ` | single, 1 page |
+| `zaswiadczenie_kot` (flow `webinar-kot`) | `zaswiadczenie_kot.typ` | batch, 1 page/item |
+
+`zaswiadczenie_kot.typ` is kept alongside `zaswiadczenie.typ`; do not delete
+either. The legacy original is `certyfikat.typ.original` in the archived
+Python repository.
+
+## Recipes
+
+### Add a new flow
+
+1. Create `src/flows/<flow-id>/`.
+2. Add:
+   - `flow.tsx` exporting a `Flow`
+   - a loader (e.g. `participants.ts`) implementing `load(file): Promise<T>`
+   - an editor component implementing `DatasetEditorProps<T>`
+   - `templates.ts` exporting `TemplateDef`s
+3. Register it in `src/flows/index.ts`:
+   ```ts
+   export const flows: Flow[] = [wydarzenie, webinarKot, myFlow];
+   ```
+4. Add any new `.typ` files to `public/assets/` **and** to `ASSETS` in
+   `src/pipeline/render.ts`.
+5. Put test spreadsheets in `test/fixtures/` (never `public/`), with invented
+   data only.
+6. Add a section to `e2e.mjs` covering the flow.
+7. Run `npm run check:privacy`, `npm run build`, `npm run e2e`, `npm run smoke`.
+
+Minimal template:
+
+```ts
+export const myTemplate: TemplateDef = {
+  id: "my-template",
+  label: "Moje PDF",
+  inputs: ["uczestnicy"],
+  meta: ["nazwa_szkolenia", "data_szkolenia"],
+  typFile: "/my-template.typ",
+  prepare(ctx) {
+    const rows = ctx.datasets.uczestnicy as Participant[];
+    const training = JSON.stringify(ctx.meta);
+    return {
+      kind: "batch",
+      concatFilename: "moje.pdf",
+      items: rows.map((participant, index) => ({
+        filename: buildCertificateFilename(index + 1, rows.length, participant),
+        inputs: {
+          training,
+          participant: JSON.stringify(participant),
+        },
+      })),
+    };
+  },
+};
+```
+
+### Add a template to an existing flow
+
+1. Put the `.typ` in `public/assets/` and add it to `ASSETS`.
+2. Create a `TemplateDef` in the flow's `templates.ts`.
+3. Add it to the flow's `templates` array.
+4. List **every** meta key the `.typ` reads in `template.meta`; otherwise the
+   shell will not require it.
+5. If the template reads a dataset field, make sure `prepare` passes it.
+6. Run the checks.
+
+### Add a meta field
+
+1. Add it to `flow.metaFields` (`key`, `label`, `type`, optional placeholder).
+2. Add the key to `meta` of every template that reads it.
+3. Use it in Typst as `tr.<key>`; pass `training: JSON.stringify(ctx.meta)`.
+4. Update e2e to fill it (all visible fields are mandatory).
+
+Meta values for unselected templates are hidden but **preserved**. Do not
+delete keys from `project.meta` when hiding fields.
+
+### Add an editor
+
+- Implement `DatasetEditorProps<T> = { value, onChange, readOnly? }`.
+- Keep the editor pure w.r.t. storage; call `onChange` with new values.
+- Use existing `data-testid` conventions for e2e.
+- Reuse `TableEditor`-style markup from `UczestnicyEditor.tsx`; promote shared
+  components only after the second real use.
+
+### Add a parser
+
+- Prefer SheetJS (`xlsx`) for `.xlsx/.xls/.ods/.csv`.
+- For CSV: decode `file.arrayBuffer()` as UTF-8, fall back to Windows-1250,
+  then `XLSX.read(text, { type: "string" })`.
+- Match headers case-insensitively after trimming and stripping BOM.
+- Normalize names/dates/cities before the editor (user edits clean data).
+- Sort with `localeCompare(..., "pl")` for Polish.
+
+## UI / result conventions
+
+- Left pane: projects as roots, datasets as leaves; only active project expands.
+- Center: dataset editor or root meta form.
+- Right: template checklist + generate + result tree + zip.
+- Batch plans with >1 item produce:
+  - one merged PDF (`concatFilename`)
+  - individual files under `pojedyncze/`
+- The zip mirrors the UI tree exactly:
+  `<project>/<template>/<merged>.pdf` and `<project>/<template>/pojedyncze/<item>.pdf`.
+- File **name** opens the PDF in a new tab; **Pobierz** downloads it.
+- Results and blob URLs are ephemeral; cleared on any data/template change and
+  not persisted.
+
+## Testing and `data-testid`
+
+`e2e.mjs` drives real Chromium. Keep selectors stable:
+
+| Element | `data-testid` |
+|---|---|
+| New project | `new-project` |
+| Flow option | `flow-<flowId>` |
+| Active project root | `active-project` |
+| Dataset leaf | `dataset-<datasetId>` |
+| Dataset editor row | `participant-row` |
+| Template checkbox | `template-<templateId>` |
+| Meta field | `meta-<key>` |
+| Generate | `generate` |
+| Results root | `results` |
+| Zip download | `download-zip` |
+
+Other conventions:
+
+- Upload via `loadDataset(page, datasetId, filePath)` (uses `waitForFileChooser`).
+- Use `pdfsFor(page, 'a[download="file.pdf"]')`; page counts are computed with
+  `pdf-lib` in Node, not a regex (merged PDFs hide `/Type /Page` in object streams).
+- Headless Chromium does not paint the built-in PDF viewer; assert on fetched
+  blobs instead.
+- Folders at depth >= 2 with more than 12 children start collapsed; click
+  `.folder-toggle` before querying their links.
+- The suite fails on any console error, page error, or 4xx/5xx response, which
+  is what catches base-path mistakes. Run `npm run e2e:base` for the deployed
+  subpath.
+
+## Pitfalls
+
+- Missing `#` on top-level Typst calls renders the code as literal text.
+- Missing asset in `ASSETS` -> Typst compile error.
+- Reading `tr.<key>` when the key is not in `flow.metaFields` -> "dictionary
+  does not contain key".
+- Forgetting a key in `template.meta` -> not required, can generate a blank PDF.
+- SheetJS with `type: "buffer"` mangles UTF-8 CSVs in this environment; decode
+  text first.
+- The ODS fixture contains junk in the email column for one row; parsers should
+  only accept emails containing `@`.
+- `dist/` is generated and wiped on build. Fixtures belong in `test/fixtures/`.
+- IndexedDB version bump currently deletes old stores; do not bump casually.
+- Blob URLs must be revoked when results are replaced (`disposeResults`).
+- The hidden file input's `accept` is set imperatively before `click()`.
+- The Typst WASM bundle is ~28 MB raw (~11 MB gzipped). Keep first-load UX in
+  mind; do not add more eager assets without measuring.
+
+## Guardrails
+
+- Do **not** build a universal dataset/projection/graph engine. Each flow is
+  concrete; copy-and-diverge is the intended workflow.
+- Do not add template-specific branches to `App.tsx`.
+- Do not persist PDFs, sources, or blob URLs.
+- Do not loop over people inside a `.typ` file.
+- Do not change `zaswiadczenie.typ` / `zaswiadczenie_kot.typ` semantics without
+  asking; both are in active use.
+- Do not commit real participant data, real e-mail addresses, or anything that
+  belongs to a specific training. `test/fixtures/` is synthetic only.
+- Do not weaken `scripts/check-privacy.mjs` to make a failing check pass; fix
+  the data.
+
+## Definition of done for a flow/template change
+
+1. `npm run check:privacy` passes.
+2. `npm run build` passes (strict TS, no unused locals).
+3. `npm run e2e` passes and covers the new flow/template.
+4. `npm run e2e:base` passes (the Pages subpath keeps working).
+5. `npm run smoke` compiles every `.typ` template.
+6. New fixtures live in `test/fixtures/` with synthetic data.
+7. New assets are in `public/assets/` and `ASSETS`.
+8. Every template meta key is listed in `template.meta`.
+9. Result tree and zip contain the expected merged + individual files.
